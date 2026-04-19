@@ -14,11 +14,11 @@
   ],
   "pi": {
     "extensions": [
-      "./ext/index.ts"
+      "./index.ts"
     ]
   },
   "files": [
-    "ext/index.ts",
+    "index.ts",
     "README.md",
     "LICENSE"
   ],
