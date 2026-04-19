@@ -16,18 +16,18 @@ Pure TypeScript extension for Pi coding agent — brings web search and content 
 cp -r pi-webmcp ~/.pi/agent/extensions/pi-webmcp
 ```
 
-2. Optionally configure search provider (create `.env` in the extension directory):
+2. (Optional) Configure an explicit LLM model — create `.env` in the extension directory:
 
 ```env
+# Explicit LLM model (overrides auto-detection from Pi)
+LLM_URL=http://localhost:1234
+LLM_MODEL=your-model-name
+
 # Search provider: "ddg" (default) or "searxng"
 SEARCH_PROVIDER=ddg
 
 # SearXNG URL (required only if SEARCH_PROVIDER=searxng)
 # SEARXNG_URL=http://localhost:8080
-
-# Fallback LLM config (used if auto-detection fails)
-LLM_URL=http://localhost:1234
-LLM_MODEL=your-model-name
 ```
 
 3. Reload Pi extensions:
@@ -36,17 +36,18 @@ LLM_MODEL=your-model-name
 /reload
 ```
 
-## Auto-detection
+## Model Selection
 
-The extension automatically detects the currently active model in pi and uses its configured LLM endpoint (from `~/.pi/agent/models.json`).
+The extension selects the LLM model using the following priority:
 
-**How it works:**
-- Listens to pi's `model_select` event to track model changes
+1. **Explicit model from `.env`** — if `.env` file exists with `LLM_URL` and `LLM_MODEL`, these are used
+2. **Auto-detected model from Pi** — if no `.env` file, the extension detects the currently active model in Pi and uses its configured LLM endpoint (from `~/.pi/agent/models.json`)
+
+**How auto-detection works:**
+- Listens to Pi's `model_select` event to track model changes
 - Looks up the provider's `baseUrl` from the model registry
 - Constructs the LLM endpoint as `{baseUrl}/v1/chat/completions`
 - Uses the model's `id` as the model parameter in API requests
-
-**Fallback:** If auto-detection fails (e.g., no model selected yet), falls back to `LLM_URL` and `LLM_MODEL` from `.env`.
 
 ## Tools
 
@@ -112,8 +113,8 @@ get_current_date()
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LLM_URL` | No (fallback) | Local LLM endpoint (e.g., `http://localhost:1234`) |
-| `LLM_MODEL` | No (fallback) | Model name (e.g., `qwen3.5-27b`) |
+| `LLM_URL` | No | Explicit LLM endpoint (e.g., `http://localhost:1234`). Overrides auto-detection if `.env` exists |
+| `LLM_MODEL` | No | Explicit model name (e.g., `qwen3.5-27b`). Overrides auto-detection if `.env` exists |
 | `SEARCH_PROVIDER` | No | Search provider: `ddg` (default) or `searxng` |
 | `SEARXNG_URL` | Conditional | SearXNG instance URL (required if `SEARCH_PROVIDER=searxng`) |
 
@@ -123,10 +124,10 @@ This is a pure TypeScript reimplementation of the webmcp Python project, adapted
 
 | Feature | webmcp (Python) | pi-webmcp (TypeScript) |
 |---------|-----------------|------------------------|
-| Web Search | `ddgs` Python package | DuckDuckGo HTML scraping |
-| Content Extraction | Playwright browser | HTTP fetch (browser mode falls back) |
-| LLM Integration | MCP protocol | Direct HTTP calls (auto-detected model) |
-| Dependencies | Python packages | Node.js stdlib + typebox |
+| Web Search | `ddgs` Python package | DuckDuckGo via duck-duck-scrape |
+| Content Extraction | Playwright browser | HTTP fetch + Playwright browser mode |
+| LLM Integration | MCP protocol | Direct HTTP calls (auto-detected or explicit model) |
+| Dependencies | Python packages | Node.js stdlib + typebox + playwright |
 
 ## License
 

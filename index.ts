@@ -8,17 +8,18 @@
  *
  * Installation:
  * 1. Copy this extension to ~/.pi/agent/extensions/pi-webmcp
- * 2. Optionally configure SEARCH_PROVIDER and SEARXNG_URL in .env
- * 3. Run: /reload
+ * 2. Optionally configure LLM_URL and LLM_MODEL in .env (explicit model)
+ * 3. Optionally configure SEARCH_PROVIDER and SEARXNG_URL in .env
+ * 4. Run: /reload
  *
- * Auto-detection: The extension automatically detects the currently active
- * model in pi and uses its configured LLM endpoint (from models.json).
- * Fallback to .env variables if model info is unavailable.
+ * Model selection priority:
+ * 1. Explicit model from .env (LLM_URL + LLM_MODEL) — if .env exists
+ * 2. Auto-detected model from Pi (active model's baseUrl)
  *
- * Environment variables (fallback only):
- * - LLM_URL: Local LLM endpoint (e.g., http://localhost:1234/v1)
- * - LLM_MODEL: Model name (e.g., qwen3.5-27b)
- * - SEARCH_PROVIDER: Optional. "ddg" (default) or "searxng"
+ * Environment variables:
+ * - LLM_URL: Explicit LLM endpoint (e.g., http://localhost:1234)
+ * - LLM_MODEL: Explicit model name (e.g., qwen3.5-27b)
+ * - SEARCH_PROVIDER: "ddg" (default) or "searxng"
  * - SEARXNG_URL: Required when SEARCH_PROVIDER=searxng
  */
 
@@ -72,12 +73,12 @@ let currentProviderBaseUrl = "";
 let modelDetected = false;
 
 function getModelInfo(): { url: string; model: string } | null {
-  // Priority: auto-detected model > env vars
-  if (currentModelId && currentProviderBaseUrl) {
-    return { url: currentProviderBaseUrl, model: currentModelId };
-  }
+  // Priority: env vars (explicit model) > auto-detected from pi
   if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL) {
     return { url: FALLBACK_LLM_URL, model: FALLBACK_LLM_MODEL };
+  }
+  if (currentModelId && currentProviderBaseUrl) {
+    return { url: currentProviderBaseUrl, model: currentModelId };
   }
   return null;
 }

@@ -41,13 +41,18 @@ Pi Coding Agent
    │
    ├─ 3. Выполняет index.ts pi-webmcp
    │    │
-   │    ├─ 3.1. Загружает .env из директории расширения
+   │    ├─ 3.1. Загружает .env из директории расширения (если существует)
    │    │     → process.env.LLM_URL, process.env.LLM_MODEL
    │    │
-   │    ├─ 3.2. Выводит конфиг в консоль
+   │    ├─ 3.2. Определяет модель LLM (приоритет: .env > auto-detect из Pi)
+   │    │
+   │    ├─ 3.3. Выводит конфиг в консоль
    │    │     → "pi-webmcp: Loading web search and extraction tools"
    │    │
-   │    └─ 3.3. Регистрирует 3 инструмента через pi.registerTool()
+   │    ├─ 3.4. Подписывается на события Pi: model_select, session_start
+   │    │     → Обновляет currentModelId / currentProviderBaseUrl
+   │    │
+   │    └─ 3.5. Регистрирует 3 инструмента через pi.registerTool()
    │          → get_current_date, search_web, extract
    │
    ├─ 4. Pi вызывает инструменты по запросу пользователя
@@ -91,10 +96,7 @@ pi.registerTool({ name: "search_web" }) → execute(params)
     │   │
     │   ├─ YES → searchDdg(query, limit)
     │   │     │
-    │   │     ├─ HTTP GET https://html.duckduckgo.com/html/?q=...
-    │   │     │
-    │   │     ├─ Парсинг HTML через regex:
-    │   │     │  /<div class="result"[^>]*>...<a...href="([^"]+)">...<a...>(.*?)</a>...<a...>(.*?)</a>/gi
+    │   │     ├─ duck-duck-scrape library (search function)
     │   │     │
     │   │     └─ → SearchResult[] { title, url, description }
     │   │
@@ -113,7 +115,7 @@ pi.registerTool({ name: "search_web" }) → execute(params)
 
 **Зависимости:** DuckDuckGo HTML API или SearXNG (self-hosted)
 
-**Таймауты:** 15 секунд на запрос
+**Таймауты:** 30 секунд на запрос
 
 ---
 
@@ -251,8 +253,8 @@ tool_calls.log.json
 
 | Переменная |_required_ | По умолчанию | Описание |
 |------------|-----------|---------------|----------|
-| `LLM_URL` | Да | — | Endpoint локального LLM |
-| `LLLM_MODEL` | Да | — | Имя модели |
+| `LLM_URL` | Нет | — | Explicit LLM endpoint (приоритет над auto-detect) |
+| `LLM_MODEL` | Нет | — | Explicit model name (приоритет над auto-detect) |
 | `SEARCH_PROVIDER` | Нет | `ddg` | `ddg` или `searxng` |
 | `SEARXNG_URL` | Условн. | — | URL SearXNG (если searxng) |
 
@@ -264,16 +266,16 @@ pi-webmcp/
 ├── package.json          # Метаданные пакета
 ├── README.md             # Документация
 ├── ARCHITECTURE.md       # Этот файл
-├── .env.example          # Пример конфига
+├── .env.example          # Пример конфига (опционально)
 ├── .gitignore            # Игнорирование файлов
-└── LICENSE               # MIT
+├── LICENSE               # MIT
+└── tool_calls.log.json   # Лог вызовов инструментов (создаётся автоматически)
 ```
 
 ## Потенциальные улучшения
 
-1. **Browser mode** — реализовать fetch через playwright для JS-heavy сайтов
-2. **Caching** — кэшировать результаты поиска/экстракции
-3. **Rate limiting** — ограничить частоту запросов
-4. **Progress updates** — отправлять onUpdate при долгой экстракции
-5. **Structured output** — парсить JSON из LLM ответа
-6. **Error recovery** — retry при таймаутах
+1. **Caching** — кэшировать результаты поиска/экстракции
+2. **Rate limiting** — ограничить частоту запросов
+3. **Progress updates** — отправлять onUpdate при долгой экстракции
+4. **Structured output** — парсить JSON из LLM ответа
+5. **Error recovery** — retry при таймаутах
