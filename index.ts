@@ -238,9 +238,14 @@ async function searchDdg(query: string, limit: number): Promise<SearchResult[]> 
   // Use duck-duck-scrape library (replaces fragile HTML regex parsing)
   const ddgQuery = query ? query.trim() : "";
   
+  if (!ddgQuery) {
+    throw new Error("Search query cannot be empty");
+  }
+  
   let results = await search(ddgQuery, {
     safeSearch: SafeSearchType.MODERATE,
-    maxResults: limit,
+    region: 'ru-ru',
+    locale: 'ru-ru',
   });
 
   return results.results
