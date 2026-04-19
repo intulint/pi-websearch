@@ -132,3 +132,9 @@ This is a pure TypeScript reimplementation of the webmcp Python project, adapted
 ## License
 
 MIT
+
+## Pi Documentation
+
+- [Extensions](https://github.com/mariozechner/pi-coding-agent/blob/main/docs/extensions.md) — How Pi extensions work
+- [Packages](https://github.com/mariozechner/pi-coding-agent/blob/main/docs/packages.md) — How to create Pi packages
+- [SDK](https://github.com/mariozechner/pi-coding-agent/blob/main/docs/sdk.md) — Pi SDK reference
