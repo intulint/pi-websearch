@@ -1,0 +1,12 @@
+# Logs
+tool_calls.log.json
+
+# Environment
+.env
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
