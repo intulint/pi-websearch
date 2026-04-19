@@ -14,11 +14,11 @@
   ],
   "pi": {
     "extensions": [
-      "./pi-webmcp/index.ts"
+      "./ext/index.ts"
     ]
   },
   "files": [
-    "pi-webmcp/index.ts",
+    "ext/index.ts",
     "README.md",
     "LICENSE"
   ],
