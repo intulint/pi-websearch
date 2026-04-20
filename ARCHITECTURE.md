@@ -96,7 +96,8 @@ pi.registerTool({ name: "search_web" }) → execute(params)
     │   │
     │   ├─ YES → searchDdg(query, limit)
     │   │     │
-    │   │     ├─ duck-duck-scrape library (search function)
+    │   │     ├─ HTTPS GET with browser-like headers
+    │   │     │   (User-Agent rotation, Sec-Fetch-*, sec-ch-ua)
     │   │     │
     │   │     └─ → SearchResult[] { title, url, description }
     │   │
