@@ -1,5 +1,5 @@
 {
-  "name": "pi-webmcp",
+  "name": "pi-websearch",
   "version": "1.0.0",
   "description": "Pi extension providing web search and structured content extraction tools",
   "type": "module",
@@ -10,15 +10,15 @@
     "web-search",
     "content-extraction",
     "extension",
-    "webmcp"
+    "websearch"
   ],
   "pi": {
     "extensions": [
-      "./index.ts"
+      "./pi-websearch.ts"
     ]
   },
   "files": [
-    "index.ts",
+    "pi-websearch.ts",
     "README.md",
     "LICENSE"
   ],

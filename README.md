@@ -1,4 +1,4 @@
-# pi-webmcp
+# pi-websearch
 
 Pi extension providing web search and structured content extraction tools.
 
@@ -7,20 +7,31 @@ Pi extension providing web search and structured content extraction tools.
 Install via `pi install`:
 
 ```bash
-pi install github:user/pi-webmcp
+pi install github:user/pi-websearch
 ```
 
 Or install from a local path:
 
 ```bash
-pi install ./path/to/pi-webmcp
+pi install ./path/to/pi-websearch
 ```
+
+### Prerequisites (local development)
+
+If running the extension directly from the project directory (without `pi install`), install dependencies first:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`).
 
 ## Tools
 
 ### `search_web`
 
-Search the web for a query. Returns titles, URLs, and descriptions of results. Supports DuckDuckGo (HTML scraping) and SearXNG.
+Search the web for a query. Returns titles, URLs, and snippet descriptions. Supports DuckDuckGo (HTML scraping) and SearXNG (JSON API).
 
 ```typescript
 search_web({
@@ -107,6 +118,8 @@ Auto-detection works by listening to Pi's `model_select` event and looking up th
 
 - `@sinclair/typebox` — Schema definitions for tool parameters
 - `playwright` — Browser-based content extraction (JS-heavy sites)
+
+> **Note:** `playwright` requires Chromium browser binaries. Run `npx playwright install chromium` after `npm install`.
 
 ## License
 

@@ -1,4 +1,4 @@
-# pi-webmcp — Архитектура расширения
+# pi-websearch — Архитектура расширения
 
 ## Общая схема
 
@@ -9,8 +9,8 @@ Pi Coding Agent
     │
     ▼
 ┌─────────────────────────┐
-│  pi-webmcp extension     │
-│  index.ts                │
+│  pi-websearch extension     │
+│  pi-websearch.ts                │
 │                          │
 │  pi.registerTool() × 3   │
 │  ┌────────────────────┐  │
@@ -39,7 +39,7 @@ Pi Coding Agent
    │
    ├─ 2. Загружает все файлы из ~/.pi/agent/extensions/
    │
-   ├─ 3. Выполняет index.ts pi-webmcp
+   ├─ 3. Выполняет pi-websearch.ts pi-websearch
    │    │
    │    ├─ 3.1. Загружает .env из директории расширения (если существует)
    │    │     → process.env.LLM_URL, process.env.LLM_MODEL
@@ -47,7 +47,7 @@ Pi Coding Agent
    │    ├─ 3.2. Определяет модель LLM (приоритет: .env > auto-detect из Pi)
    │    │
    │    ├─ 3.3. Выводит конфиг в консоль
-   │    │     → "pi-webmcp: Loading web search and extraction tools"
+   │    │     → "pi-websearch: Loading web search and extraction tools"
    │    │
    │    ├─ 3.4. Подписывается на события Pi: model_select, session_start
    │    │     → Обновляет currentModelId / currentProviderBaseUrl
@@ -214,7 +214,7 @@ pi.on("session_start", (event, ctx) => { ... })
 pi.on("session_shutdown", (event) => { ... })
 
 // Команды
-pi.registerCommand("webmcp", {
+pi.registerCommand("pi-websearch", {
   description: string,
   handler: (args, ctx) => { ... }
 })
@@ -261,8 +261,8 @@ tool_calls.log.json
 ## Структура файлов
 
 ```
-pi-webmcp/
-├── index.ts              # Основной код расширения
+pi-websearch/
+├── pi-websearch.ts              # Основной код расширения
 ├── package.json          # Метаданные пакета
 ├── README.md             # Документация
 ├── ARCHITECTURE.md       # Этот файл

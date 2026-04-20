@@ -1,7 +1,7 @@
 /**
  * Test script for regular DuckDuckGo search using browser-like headers
  * Uses HTTPS GET with full browser headers to mimic a real browser — avoids bot detection
- * Based on the reference from ../webmcp (browser masking approach)
+ * Based on the reference from ../pi-websearch (browser masking approach)
  * Usage: npx tsx test-search-regular.ts "search query" [limit]
  */
 
@@ -95,7 +95,7 @@ function parseResults(html: string, limit: number): SearchResult[] {
 }
 
 async function searchDdgBrowser(query: string, limit: number = 5): Promise<SearchResult[]> {
-  // Exclude grokipedia.com from search results (same as sibling webmcp project)
+  // Exclude grokipedia.com from search results (same as sibling pi-websearch project)
   const SEARCH_EXCLUDE = "-site:grokipedia.com";
   const fullQuery = query + " " + SEARCH_EXCLUDE;
   const encodedQuery = encodeURIComponent(fullQuery);

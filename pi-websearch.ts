@@ -1,26 +1,16 @@
 /**
- * pi-webmcp - Web search and content extraction tools for Pi coding agent
+ * pi-websearch — Web search and structured content extraction tools for Pi.
  *
- * Pure TypeScript extension (no MCP layer). Provides:
- * - search_web: Search the web using DuckDuckGo (via duck-duck-scrape)
- * - extract: Extract structured data from URLs using the currently active LLM
+ * Provides three custom tools:
+ * - search_web: Search the web using DuckDuckGo (HTML scraping) or SearXNG (JSON API)
+ * - extract: Extract structured data from URLs using the active LLM
  * - get_current_date: Get the current date
  *
- * Installation:
- * 1. Copy this extension to ~/.pi/agent/extensions/pi-webmcp
- * 2. Optionally configure LLM_URL and LLM_MODEL in .env (explicit model)
- * 3. Optionally configure SEARCH_PROVIDER and SEARXNG_URL in .env
- * 4. Run: /reload
+ * Installed as a pi package via `pi install`. The extension auto-detects
+ * the active LLM model from Pi's model registry. Optionally override with
+ * LLM_URL + LLM_MODEL in a .env file.
  *
- * Model selection priority:
- * 1. Explicit model from .env (LLM_URL + LLM_MODEL) — if .env exists
- * 2. Auto-detected model from Pi (active model's baseUrl)
- *
- * Environment variables:
- * - LLM_URL: Explicit LLM endpoint (e.g., http://localhost:1234)
- * - LLM_MODEL: Explicit model name (e.g., qwen3.5-27b)
- * - SEARCH_PROVIDER: "ddg" (default) or "searxng"
- * - SEARXNG_URL: Required when SEARCH_PROVIDER=searxng
+ * See docs/extensions.md for the full extension API reference.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -30,7 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 
 // ============================================================================
-// Configuration
+// Configuration — .env loading and model detection
 // ============================================================================
 
 const TOOL_CALL_LOG_PATH = join(
@@ -61,6 +51,7 @@ function loadEnvFile(path: string): void {
 // Load .env from extension directory (fallback only)
 loadEnvFile(join(dirname(new URL(import.meta.url).pathname), ".env"));
 
+// LLM configuration — resolved via env vars or auto-detected from Pi
 const FALLBACK_LLM_URL = process.env.LLM_URL || "";
 const FALLBACK_LLM_MODEL = process.env.LLM_MODEL || "";
 const SEARCH_PROVIDER = (process.env.SEARCH_PROVIDER || "ddg").toLowerCase().trim();
@@ -70,6 +61,8 @@ const SEARXNG_URL = process.env.SEARXNG_URL || "";
 let currentModelId = "";
 let currentProviderBaseUrl = "";
 let modelDetected = false;
+
+
 
 function getModelInfo(): { url: string; model: string } | null {
   // Priority: env vars (explicit model) > auto-detected from pi
@@ -86,18 +79,18 @@ function logConfigStatus(): void {
   const info = getModelInfo();
   if (info) {
     console.log(
-      `pi-webmcp: LLM configured — URL: ${info.url}, Model: ${info.model}`
+      `pi-websearch: LLM configured — URL: ${info.url}, Model: ${info.model}`
     );
   } else {
     console.warn(
-      "pi-webmcp: No LLM configuration found.\n" +
+      "pi-websearch: No LLM configuration found.\n" +
       "Set LLM_URL and LLM_MODEL in .env, or switch to a model in pi."
     );
   }
 }
 
 // ============================================================================
-// LLM URL Helper — smart /v1 prefix handling
+// LLM URL Helper — smart /v1/chat/completions prefix handling
 // ============================================================================
 
 function buildChatCompletionsUrl(baseUrl: string): string {
@@ -106,15 +99,16 @@ function buildChatCompletionsUrl(baseUrl: string): string {
   if (url.includes("/v1/chat/completions") || url.endsWith("/v1")) {
     return url.endsWith("/chat/completions") ? url : `${url}/chat/completions`;
   }
-  // Add /v1/chat/completions
+  // Append /v1/chat/completions to the base URL
   return `${url}/v1/chat/completions`;
 }
 
 // ============================================================================
-// HTTP Helpers
+// HTTP Helpers — lightweight fetch wrapper and JSON POST
 // ============================================================================
 
 async function httpGet(url: string, timeoutMs = 30000): Promise<string> {
+  // Lightweight HTTP GET with redirect handling and timeout
   const https = await import("https");
   const http = await import("http");
   const { URL } = await import("url");
@@ -158,6 +152,7 @@ async function httpGet(url: string, timeoutMs = 30000): Promise<string> {
 }
 
 async function httpPostJson(url: string, body: unknown, timeoutMs = 60000): Promise<unknown> {
+  // Lightweight HTTP POST with JSON body and timeout
   const https = await import("https");
   const http = await import("http");
   const { URL } = await import("url");
@@ -203,11 +198,11 @@ async function httpPostJson(url: string, body: unknown, timeoutMs = 60000): Prom
 }
 
 // ============================================================================
-// Content Processing
+// Content Processing — HTML cleaning and title extraction
 // ============================================================================
 
 function htmlToClean(html: string): string {
-  // Strip scripts and styles
+  // Strip <script> and <style> tags, collapse whitespace
   let text = html.replace(/<script[\s\S]*?<\/script>/gi, "");
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
   // Strip all other tags
@@ -219,12 +214,13 @@ function htmlToClean(html: string): string {
 }
 
 function extractTitle(html: string): string {
+  // Extract <title> content from HTML
   const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
   return match ? match[1].trim() : "";
 }
 
 // ============================================================================
-// Web Search
+// Web Search — DuckDuckGo HTML and SearXNG JSON APIs
 // ============================================================================
 
 interface SearchResult {
@@ -256,15 +252,14 @@ function decodeDdgUrl(href: string): string {
 }
 
 async function searchDdg(query: string, limit: number): Promise<SearchResult[]> {
-  // Use DuckDuckGo HTML version (html.duckduckgo.com) with browser-like headers
-  // This avoids bot detection because headers mimic a real browser
+  // DuckDuckGo HTML search with browser-like headers to avoid bot detection
   const ddgQuery = query ? query.trim() : "";
   
   if (!ddgQuery) {
     throw new Error("Search query cannot be empty");
   }
   
-  // Exclude grokipedia.com from search results (same as sibling webmcp project)
+  // Exclude grokipedia.com from search results (same as sibling pi-websearch project)
   const SEARCH_EXCLUDE = "-site:grokipedia.com";
   const fullQuery = ddgQuery + " " + SEARCH_EXCLUDE;
   
@@ -365,6 +360,7 @@ async function searchDdg(query: string, limit: number): Promise<SearchResult[]> 
 }
 
 async function searchSearxng(query: string, limit: number): Promise<SearchResult[]> {
+  // SearXNG JSON API search
   if (!SEARXNG_URL) {
     throw new Error("SEARXNG_URL is required when SEARCH_PROVIDER=searxng");
   }
@@ -398,7 +394,7 @@ async function searchWeb(query: string, limit: number = 10): Promise<string> {
 }
 
 // ============================================================================
-// Tool Call Logging
+// Tool Call Logging — persistent JSON log of tool invocations
 // ============================================================================
 
 function logToolCall(toolName: string, arguments_: unknown, result: string): void {
@@ -442,6 +438,7 @@ function logToolCall(toolName: string, arguments_: unknown, result: string): voi
 // ============================================================================
 
 async function fetchPageWithBrowser(url: string, timeoutMs = 60000): Promise<{ title: string; text: string; error?: string }> {
+  // Fetch page content via Playwright browser (for JS-heavy sites)
   let browser;
   try {
     browser = await chromium.launch({
@@ -502,7 +499,7 @@ async function fetchPage(url: string, useBrowser: boolean): Promise<{ title: str
     return await fetchPageWithBrowser(url);
   }
   
-  // Simple HTTP fetch for static pages
+  // Simple HTTP GET + HTML cleaning for static pages
   try {
     const html = await httpGet(url, 60000);
     const title = extractTitle(html) || url;
@@ -526,6 +523,7 @@ async function fetchPage(url: string, useBrowser: boolean): Promise<{ title: str
 }
 
 async function llmExtract(content: string, prompt: string | null, schema: unknown | null): Promise<string> {
+  // Send page content to the active LLM for structured extraction
   const systemMsg = [
     "You are a data extraction assistant.",
     "Extract the requested information from the provided web page content.",
@@ -617,27 +615,27 @@ async function extractContent(
 }
 
 // ============================================================================
-// Pi Extension
+// Pi Extension — event subscriptions and tool registration
 // ============================================================================
 
-export default function piWebmcp(pi: ExtensionAPI): void {
-  console.log("pi-webmcp: Loading web search and extraction tools");
+export default function piWebsearch(pi: ExtensionAPI): void {
+  console.log("pi-websearch: Loading web search and extraction tools");
   console.log(`  SEARCH_PROVIDER: ${SEARCH_PROVIDER}`);
 
-  // Auto-detect the currently active model in pi
+  // Listen for model changes to auto-detect the active LLM
   pi.on("model_select", async (event, ctx) => {
     const modelId = event.model?.id ?? "";
     const providerName = event.model?.provider ?? "";
 
     if (!modelId) {
-      console.warn("pi-webmcp: model_select fired but model.id is empty");
+      console.warn("pi-websearch: model_select fired but model.id is empty");
       return;
     }
 
     currentModelId = modelId;
     modelDetected = true;
 
-    // Try to get baseUrl from the current model object first
+    // Resolve baseUrl: try ctx.model first, then modelRegistry
     let baseUrl = "";
     if (ctx.model) {
       baseUrl = (ctx.model as any).baseUrl || "";
@@ -645,34 +643,31 @@ export default function piWebmcp(pi: ExtensionAPI): void {
 
     if (baseUrl) {
       console.log(
-        `pi-webmcp: Model detected — ${providerName}/${modelId} → ${baseUrl}`
+        `pi-websearch: Model detected — ${providerName}/${modelId} → ${baseUrl}`
       );
       logConfigStatus();
-    } else {
-      // Try to find the model in the registry
-      if (providerName && ctx.modelRegistry) {
-        const foundModel = ctx.modelRegistry.find(providerName, modelId);
-        if (foundModel) {
-          baseUrl = (foundModel as any).baseUrl || "";
-        }
+    } else if (providerName && ctx.modelRegistry) {
+      // Fallback: look up the model in the registry
+      const foundModel = ctx.modelRegistry.find(providerName, modelId);
+      if (foundModel) {
+        baseUrl = (foundModel as any).baseUrl || "";
       }
 
       if (baseUrl) {
         console.log(
-          `pi-webmcp: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
+          `pi-websearch: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
         );
         logConfigStatus();
       } else {
         console.warn(
-          `pi-webmcp: Model ${modelId} detected, but baseUrl is not available. ` +
+          `pi-websearch: Model ${modelId} detected, but baseUrl is not available. ` +
           `Falling back to .env variables.`
         );
       }
     }
   });
 
-  // Check if a model is already selected when the extension loads
-  // (e.g., pi has already selected a model before this extension started)
+  // Check if a model is already selected when the session starts
   pi.on("session_start", async (_event, ctx) => {
     if (!ctx.model) return;
 
@@ -684,33 +679,31 @@ export default function piWebmcp(pi: ExtensionAPI): void {
     currentModelId = modelId;
     modelDetected = true;
 
-    // Try to get baseUrl from the current model object first
+    // Resolve baseUrl: try ctx.model first, then modelRegistry
     let baseUrl = (ctx.model as any).baseUrl || "";
 
     if (baseUrl) {
       currentProviderBaseUrl = baseUrl;
       console.log(
-        `pi-webmcp: Model already selected — ${providerName}/${modelId} → ${baseUrl}`
+        `pi-websearch: Model already selected — ${providerName}/${modelId} → ${baseUrl}`
       );
       logConfigStatus();
-    } else {
-      // Try to find the model in the registry
-      if (ctx.modelRegistry) {
-        const foundModel = ctx.modelRegistry.find(providerName, modelId);
-        if (foundModel) {
-          baseUrl = (foundModel as any).baseUrl || "";
-        }
+    } else if (ctx.modelRegistry) {
+      // Fallback: look up the model in the registry
+      const foundModel = ctx.modelRegistry.find(providerName, modelId);
+      if (foundModel) {
+        baseUrl = (foundModel as any).baseUrl || "";
       }
 
       if (baseUrl) {
         currentProviderBaseUrl = baseUrl;
         console.log(
-          `pi-webmcp: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
+          `pi-websearch: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
         );
         logConfigStatus();
       } else {
         console.warn(
-          `pi-webmcp: Model ${modelId} detected, but baseUrl is not available. ` +
+          `pi-websearch: Model ${modelId} detected, but baseUrl is not available. ` +
           `Falling back to .env variables.`
         );
         logConfigStatus();
@@ -718,10 +711,10 @@ export default function piWebmcp(pi: ExtensionAPI): void {
     }
   });
 
-  // Initial status log (will be updated by session_start or model_select)
+  // Initial status log (will be updated by session_start or model_select handlers)
   logConfigStatus();
 
-  // Register get_current_date tool
+  // Register get_current_date tool — returns the current date in ISO format
   pi.registerTool({
     name: "get_current_date",
     label: "Current Date",
@@ -739,11 +732,11 @@ export default function piWebmcp(pi: ExtensionAPI): void {
     },
   });
 
-  // Register search_web tool
+  // Register search_web tool — web search via DuckDuckGo or SearXNG
   pi.registerTool({
     name: "search_web",
     label: "Web Search",
-    description: "Search the web for a query. Returns titles, URLs, and descriptions of results. Supports DuckDuckGo (via duck-duck-scrape) and SearXNG.",
+    description: "Search the web for a query. Returns titles, URLs, and snippet descriptions. Supports DuckDuckGo (HTML scraping) and SearXNG (JSON API).",
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(Type.Number({ description: "Maximum number of results (default: 10)" })),
@@ -758,7 +751,7 @@ export default function piWebmcp(pi: ExtensionAPI): void {
     },
   });
 
-  // Register extract tool
+  // Register extract tool — structured data extraction via active LLM
   pi.registerTool({
     name: "extract",
     label: "Extract Content",
