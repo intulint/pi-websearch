@@ -4,7 +4,7 @@ Pure TypeScript extension for Pi coding agent — brings web search and content 
 
 ## Features
 
-- **`search_web(query, limit)`** — Search the web using DuckDuckGo (default) or SearXNG
+- **`search_web(query, limit)`** — Search the web using DuckDuckGo with browser-like headers (mimics real Chrome/Edge/Firefox/Safari to avoid bot detection)
 - **`extract(urls, prompt, schema, useBrowser)`** — Extract structured data from URLs using the currently active LLM
 - **`get_current_date()`** — Get the current date
 
@@ -53,7 +53,7 @@ The extension selects the LLM model using the following priority:
 
 ### search_web
 
-Search the web for a query.
+Search the web for a query. Uses DuckDuckGo HTML version with browser-like headers (random user-agent rotation, proper Sec-Fetch headers, sec-ch-ua headers) to mimic a real browser and avoid bot detection.
 
 ```typescript
 search_web({
@@ -124,7 +124,7 @@ This is a pure TypeScript reimplementation of the webmcp Python project, adapted
 
 | Feature | webmcp (Python) | pi-webmcp (TypeScript) |
 |---------|-----------------|------------------------|
-| Web Search | `ddgs` Python package | DuckDuckGo via duck-duck-scrape |
+| Web Search | `ddgs` Python package | DuckDuckGo HTML with browser headers (Chrome/Edge/Firefox/Safari UA rotation) |
 | Content Extraction | Playwright browser | HTTP fetch + Playwright browser mode |
 | LLM Integration | MCP protocol | Direct HTTP calls (auto-detected or explicit model) |
 | Dependencies | Python packages | Node.js stdlib + typebox + playwright |
