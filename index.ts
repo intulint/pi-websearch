@@ -264,11 +264,15 @@ async function searchDdg(query: string, limit: number): Promise<SearchResult[]> 
     throw new Error("Search query cannot be empty");
   }
   
+  // Exclude grokipedia.com from search results (same as sibling webmcp project)
+  const SEARCH_EXCLUDE = "-site:grokipedia.com";
+  const fullQuery = ddgQuery + " " + SEARCH_EXCLUDE;
+  
   const https = await import("https");
   const zlib = await import("zlib");
   const { URL } = await import("url");
   
-  const encodedQuery = encodeURIComponent(ddgQuery);
+  const encodedQuery = encodeURIComponent(fullQuery);
   const url = `https://html.duckduckgo.com/html/?q=${encodedQuery}&b=0&p=1&s=0&df=y`;
   
   // Browser-like headers with random user-agent rotation (mimics Chrome/Edge/Firefox/Safari)

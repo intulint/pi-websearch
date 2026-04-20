@@ -95,7 +95,10 @@ function parseResults(html: string, limit: number): SearchResult[] {
 }
 
 async function searchDdgBrowser(query: string, limit: number = 5): Promise<SearchResult[]> {
-  const encodedQuery = encodeURIComponent(query);
+  // Exclude grokipedia.com from search results (same as sibling webmcp project)
+  const SEARCH_EXCLUDE = "-site:grokipedia.com";
+  const fullQuery = query + " " + SEARCH_EXCLUDE;
+  const encodedQuery = encodeURIComponent(fullQuery);
   const url = `https://html.duckduckgo.com/html/?q=${encodedQuery}&b=0&p=1&s=0&df=y`;
   
   const headers = buildHeaders();
