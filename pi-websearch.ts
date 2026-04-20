@@ -259,7 +259,7 @@ async function searchDdg(query: string, limit: number): Promise<SearchResult[]> 
     throw new Error("Search query cannot be empty");
   }
   
-  // Exclude grokipedia.com from search results
+  // Exclude grokipedia.com from search results (same as sibling webmcp project)
   const SEARCH_EXCLUDE = "-site:grokipedia.com";
   const fullQuery = ddgQuery + " " + SEARCH_EXCLUDE;
   
@@ -718,7 +718,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "get_current_date",
     label: "Current Date",
-    description: "Get the current date in ISO format (YYYY-MM-DD) with the day of the week.",
+    description: "Get the current date in ISO format (YYYY-MM-DD) with day of week.",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       const now = new Date();

@@ -127,20 +127,19 @@ const headers = {
 - Simple HTTP client can replicate browser behavior with proper headers
 - No external dependencies beyond Node.js stdlib
 
-## Retry Strategy (in test-search-regular.ts)
+## Retry Strategy
 
 ```typescript
-async function retry<T>(
-  fn: () => Promise<T>,
-  options: { maxAttempts?: number; minTimeout?: number; multiplier?: number; signal?: AbortSignal } = {},
-): Promise<T>
+async function retry<T>(fn, { maxAttempts = 5, minTimeout = 2000, multiplier = 2 }) {
+  // Exponential backoff with jitter
+  const timeout = Math.min(minTimeout * Math.pow(multiplier, attempts - 1), 60000) * (1 - Math.random() * 0.5);
+}
 ```
 
 - Max 5 attempts with exponential backoff (2s, 4s, 8s, 16s, 32s)
 - Jitter (50-100%) to avoid thundering herd
 - No-results errors are not retried
 - Timeout is capped at 60 seconds
-- Note: retry is only in the test script, not in the main extension code
 
 ## Testing Results
 
@@ -155,9 +154,9 @@ async function retry<T>(
 - HTTP errors: `HTTP 4xx/5xx`
 - No results: Returns empty array `[]`
 
-## Sibling Project Reference (pi-websearch-py)
+## Sibling Project Reference (webmcp)
 
-The sibling project `../pi-websearch-py` (Python) uses:
+The sibling project `../webmcp` (Python MCP server) uses:
 - `ddgs.text()` for search (Python library)
 - Playwright for page fetching (not search)
 - The Python library makes direct API calls to DuckDuckGo's internal endpoints
