@@ -212,13 +212,7 @@ pi.registerTool({
 
 // События
 pi.on("session_start", (event, ctx) => { ... })
-pi.on("session_shutdown", (event) => { ... })
-
-// Команды
-pi.registerCommand("pi-websearch", {
-  description: string,
-  handler: (args, ctx) => { ... }
-})
+pi.on("model_select", (event, ctx) => { ... })
 ```
 
 ## Обработка ошибок

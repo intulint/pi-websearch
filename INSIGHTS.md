@@ -154,9 +154,9 @@ async function retry<T>(fn, { maxAttempts = 5, minTimeout = 2000, multiplier = 2
 - HTTP errors: `HTTP 4xx/5xx`
 - No results: Returns empty array `[]`
 
-## Sibling Project Reference (pi-websearch)
+## Sibling Project Reference (pi-websearch-py)
 
-The sibling project `../pi-websearch` uses:
+The sibling project `../pi-websearch-py` (Python) uses:
 - `ddgs.text()` for search (Python library)
 - Playwright for page fetching (not search)
 - The Python library makes direct API calls to DuckDuckGo's internal endpoints

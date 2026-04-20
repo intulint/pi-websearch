@@ -17,7 +17,7 @@ async function searchDdg(query: string, limit: number = 5): Promise<SearchResult
   const url = `https://html.duckduckgo.com/html/?q=${encodedQuery}&b=0&p=1&s=0&df=y`;
   
   const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
     'Accept-Encoding': 'gzip, deflate, br',
@@ -29,7 +29,7 @@ async function searchDdg(query: string, limit: number = 5): Promise<SearchResult
     'Sec-Fetch-User': '?1',
     'Sec-GPC': '1',
     'Cache-Control': 'max-age=0',
-    'sec-ch-ua': '"Chromium";v="129", "Not=A?Brand";v="8"',
+    'sec-ch-ua': '"Chromium";v="146", "Not=A?Brand";v="8"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
   };
@@ -60,19 +60,22 @@ async function searchDdg(query: string, limit: number = 5): Promise<SearchResult
         }
         
         // Parse results from HTML
-        const resultBlocks = html.match(/<div class="result[^"]*"[^>]*>[\s\S]*?<\/div>/g);
+        // Use lookahead to capture full result divs including inner content
+        const resultBlocks = html.match(/<div class="result[^"]*results_links[^"]*"[^>]*>[\s\S]*?(?=<div class="result[^"]*results_links|$)/g);
         const results: SearchResult[] = [];
         
         if (resultBlocks) {
           for (let i = 0; i < Math.min(limit, resultBlocks.length); i++) {
             const block = resultBlocks[i];
             
-            // Extract title from h2
-            const titleMatch = block.match(/<h2[^>]*>([\s\S]*?)<\/h2>/);
-            const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+            // Extract title from h2.result__title > a.result__a
+            const titleMatch = block.match(/<h2[^>]*>[\s\S]*?<a[^>]*class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/);
+            const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, ' ').trim() : '';
             
-            // Extract URL from first anchor
-            const urlMatch = block.match(/<a[^>]*href="([^"]+)"[^>]*>/);
+            if (!title) continue;
+            
+            // Extract URL from result__a anchor
+            const urlMatch = block.match(/<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"/);
             let url = urlMatch?.[1] || '';
             
             // Decode DuckDuckGo redirect URL
@@ -82,10 +85,16 @@ async function searchDdg(query: string, limit: number = 5): Promise<SearchResult
               url = 'https:' + url;
             }
             
+            if (!url) continue;
+            
+            // Extract description from a.result__snippet
+            const snippetMatch = block.match(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+            const description = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, ' ').trim() : '';
+            
             results.push({
               title,
               url,
-              description: '',
+              description,
             });
           }
         }
