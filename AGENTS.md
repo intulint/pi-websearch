@@ -59,14 +59,14 @@ Returns human-readable date string.
 
 - **No `dist/` directory.** Everything is raw TypeScript loaded by jiti.
 - **`node_modules` must exist.** Pi does not auto-run `npm install` for local extensions.
-- **Type stubs:** `typestubs/@mariozechner/pi-coding-agent.d.ts` provides minimal types so `tsc --noEmit` works without the full monorepo. Update stubs if you change the pi API surface.
+- **Type stubs:** Minimal types are provided via `@mariozechner/pi-coding-agent` peer dependency for `tsc --noEmit` without the full monorepo.
 - **Tool call logging:** All tool calls are logged to `tool_calls.log.json` in the project root.
 - **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
 
 ## Style
 
 - No `any` types unless absolutely necessary.
-- No inline/dynamic imports — always top-level.
+- Dynamic imports (`await import()`) are used for Node.js stdlib modules.
 - Follow patterns in `pi-websearch.ts` for tool registration and event handling.
 
 ## Related docs

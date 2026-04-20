@@ -246,7 +246,7 @@ tool_calls.log.json
 
 ## Конфигурация
 
-| Переменная |_required_ | По умолчанию | Описание |
+| Переменная | _required_ | По умолчанию | Описание |
 |------------|-----------|---------------|----------|
 | `LLM_URL` | Нет | — | Explicit LLM endpoint (приоритет над auto-detect) |
 | `LLM_MODEL` | Нет | — | Explicit model name (приоритет над auto-detect) |
