@@ -736,7 +736,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "search_web",
     label: "Web Search",
-    description: "Search the web for a query. Returns titles, URLs, and snippet descriptions. Supports DuckDuckGo (HTML scraping) and SearXNG (JSON API).",
+    description: "Search the web for a query. Returns titles, URLs, and snippet descriptions. Uses DuckDuckGo HTML scraping. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.",
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(Type.Number({ description: "Maximum number of results (default: 10)" })),
