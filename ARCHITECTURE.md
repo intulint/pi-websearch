@@ -27,7 +27,6 @@ Pi Coding Agent
 │  External Services                        │
 │                                           │
 │  DuckDuckGo HTML (html.duckduckgo.com)   │
-│  SearXNG (self-hosted)                    │
 │  Local LLM (OpenAI-compatible API)        │
 └──────────────────────────────────────────┘
 ```
@@ -49,8 +48,9 @@ Pi Coding Agent
    │    ├─ 3.3. Выводит конфиг в консоль
    │    │     → "pi-websearch: Loading web search and extraction tools"
    │    │
-   │    ├─ 3.4. Подписывается на события Pi: model_select, session_start
+   │    ├─ 3.4. Подписывается на события Pi: model_select, session_start, turn_start
    │    │     → Обновляет currentModelId / currentProviderBaseUrl
+   │    │     → Сбрасывает extractAllowed флаг при новом сообщении
    │    │
    │    └─ 3.5. Регистрирует 3 инструмента через pi.registerTool()
    │          → get_current_date, search_web, extract
@@ -92,20 +92,12 @@ pi.registerTool({ name: "search_web" }) → execute(params)
     │
     ├─ params = { query: "последние новости AI", limit: 10 }
     │
-    ├─ SEARCH_PROVIDER === "ddg" ?
-    │   │
-    │   ├─ YES → searchDdg(query, limit)
-    │   │     │
-    │   │     ├─ HTTPS GET with browser-like headers
-    │   │     │   (User-Agent rotation, Sec-Fetch-*, sec-ch-ua)
-    │   │     │
-    │   │     └─ → SearchResult[] { title, url, description }
-    │   │
-    │   └─ NO  → searchSearxng(query, limit)
-    │         │
-    │         ├─ HTTP GET {SEARXNG_URL}/search?q=...&format=json
-    │         │
-    │         └─ → SearchResult[] { title, url, description }
+    ├─ searchDdg(query, limit)
+    │     │
+    │     ├─ HTTPS GET with browser-like headers
+    │     │   (User-Agent rotation, Sec-Fetch-*, sec-ch-ua)
+    │     │
+    │     └─ → SearchResult[] { title, url, description }
     │
     ├─ logToolCall("search_web", params, JSON.stringify(data))
     │   → tool_calls.log.json
@@ -114,9 +106,11 @@ pi.registerTool({ name: "search_web" }) → execute(params)
 { content: [{ type: "text", text: '[{"title":"...","url":"...","description":"..."}]' }] }
 ```
 
-**Зависимости:** DuckDuckGo HTML API или SearXNG (self-hosted)
+**Зависимости:** DuckDuckGo HTML API
 
 **Таймауты:** 30 секунд на запрос
+
+**Rate limits:** DuckDuckGo блокирует при частых запросах. WARNING в description инструмента.
 
 ---
 
@@ -127,6 +121,11 @@ pi.registerTool({ name: "search_web" }) → execute(params)
     │
     ▼
 pi.registerTool({ name: "extract" }) → execute(params)
+    │
+    ├─ check extractAllowed flag
+    │   │
+    │   ├─ false → return error immediately (batch restriction)
+    │   └─ true  → set extractAllowed = false
     │
     ├─ params = {
     │     urls: ["https://site1.com", "https://site2.com"],
@@ -142,21 +141,11 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │   │
     │   ├─ fetchPage(url, useBrowser)
     │   │   │
-    │   │   ├─ HTTP GET url (timeout 60s)
+    │   │   ├─ Playwright browser (if useBrowser)
+    │   │   │   → headless chromium, timeout 60s
     │   │   │
-    │   │   ├─ extractTitle(html) → "<title>..."
-    │   │   │
-    │   │   ├─ htmlToClean(html):
-    │   │   │   1. Strip <script>
-    │   │   │   2. Strip <style>
-    │   │   │   3. Strip all tags → " "
-    │   │   │   4. Collapse whitespace
-    │   │   │   5. Collapse newlines
-    │   │   │
-    │   │   ├─ text.length < 50 ?
-    │   │   │   └─ YES → fallback cleaning (tags → "\n")
-    │   │   │
-    │   │   └─ { title, text, error? }
+    │   │   └─ HTTP GET + HTML cleaning (if !useBrowser)
+    │   │       → timeout 60s
     │   │
     │   └─ result.error ?
     │       └─ YES → "=== url ===\nFailed: error"
@@ -189,11 +178,31 @@ pi.registerTool({ name: "extract" }) → execute(params)
 { content: [{ type: "text", text: llmExtract_result }] }
 ```
 
-**Зависимости:** Local LLM (OpenAI-compatible API)
+**Зависимости:** Local LLM (OpenAI-compatible API), Playwright (optional)
 
 **Таймауты:** 60 секунд на fetch, 10 минут на LLM
 
+**Batch restriction:** Only one extract per batch. Resets on `turn_start`.
+
 ---
+
+## Batch Tracking
+
+```
+turn_start (new user message)
+    │
+    └─ extractAllowed = true  (reset)
+
+extract call #1
+    │
+    ├─ extractAllowed === true  → execute, set extractAllowed = false
+    │
+    └─ extract call #2+ (same batch)
+        │
+        └─ extractAllowed === false → return error immediately
+```
+
+This prevents multiple parallel LLM requests that cause hangs and timeouts.
 
 ## Взаимодействие с Pi API
 
@@ -213,6 +222,7 @@ pi.registerTool({
 // События
 pi.on("session_start", (event, ctx) => { ... })
 pi.on("model_select", (event, ctx) => { ... })
+pi.on("turn_start", () => { ... })
 ```
 
 ## Обработка ошибок
@@ -227,6 +237,10 @@ HTTP Error
     │
     ▼
 Tool returns { content: [{ type: "text", text: error }] }
+
+Batch Error (extract)
+    │
+    └─ "Extract tool is already running in this batch..."
 ```
 
 ## Логирование
@@ -250,8 +264,8 @@ tool_calls.log.json
 |------------|-----------|---------------|----------|
 | `LLM_URL` | Нет | — | Explicit LLM endpoint (приоритет над auto-detect) |
 | `LLM_MODEL` | Нет | — | Explicit model name (приоритет над auto-detect) |
-| `SEARCH_PROVIDER` | Нет | `ddg` | `ddg` или `searxng` |
-| `SEARXNG_URL` | Условн. | — | URL SearXNG (если searxng) |
+
+> **Note:** SearXNG support has been removed. Only DuckDuckGo is available.
 
 ## Структура файлов
 
@@ -261,6 +275,9 @@ pi-websearch/
 ├── package.json          # Метаданные пакета
 ├── README.md             # Документация
 ├── ARCHITECTURE.md       # Этот файл
+├── EVENTS.md             # События Pi, используемые расширением
+├── AGENTS.md             # Инструкции для агента
+├── INSIGHTS.md           # Инсайты по DuckDuckGo парсингу
 ├── .env.example          # Пример конфига (опционально)
 ├── .gitignore            # Игнорирование файлов
 ├── LICENSE               # MIT
@@ -270,7 +287,6 @@ pi-websearch/
 ## Потенциальные улучшения
 
 1. **Caching** — кэшировать результаты поиска/экстракции
-2. **Rate limiting** — ограничить частоту запросов
-3. **Progress updates** — отправлять onUpdate при долгой экстракции
-4. **Structured output** — парсить JSON из LLM ответа
-5. **Error recovery** — retry при таймаутах
+2. **Progress updates** — отправлять onUpdate при долгой экстракции
+3. **Structured output** — парсить JSON из LLM ответа
+4. **Error recovery** — retry при таймаутах

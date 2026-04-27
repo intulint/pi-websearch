@@ -21,7 +21,7 @@ npm install
 npx playwright install chromium
 ```
 
-Runtime deps: `playwright`, `@sinclair/typebox`.
+Runtime deps: `playwright`, `typebox`.
 Peer deps (for type stubs): `@mariozechner/pi-coding-agent`, `@sinclair/typebox`.
 
 ## Configuration
@@ -31,13 +31,9 @@ Create a `.env` file to override defaults:
 ```env
 LLM_URL=http://localhost:1234
 LLM_MODEL=qwen3.5-27b
-SEARCH_PROVIDER=ddg        # or "searxng"
-SEARXNG_URL=http://localhost:8080
 ```
 
 - `LLM_URL` + `LLM_MODEL` — explicit model (overrides auto-detection)
-- `SEARCH_PROVIDER` — `ddg` (DuckDuckGo, default) or `searxng`
-- `SEARXNG_URL` — required only if using SearXNG
 
 If no `.env` exists, the extension auto-detects the active Pi model from the model registry.
 
@@ -45,11 +41,15 @@ If no `.env` exists, the extension auto-detects the active Pi model from the mod
 
 ### `search_web`
 
-Search the web. Returns JSON array of `{ title, url, description }`.
+Search the web using DuckDuckGo HTML scraping. Returns JSON array of `{ title, url, description }`.
+
+> **WARNING:** Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.
 
 ### `extract`
 
 Fetch URLs (with optional Playwright browser mode), extract readable content, send to local LLM for structured extraction.
+
+> **WARNING:** Only one `extract` call is allowed per batch. If multiple extract calls are sent in the same request, only the first one executes — others return an error immediately.
 
 ### `get_current_date`
 
@@ -62,6 +62,7 @@ Returns human-readable date string.
 - **Type stubs:** Minimal types are provided via `@mariozechner/pi-coding-agent` peer dependency for `tsc --noEmit` without the full monorepo.
 - **Tool call logging:** All tool calls are logged to `tool_calls.log.json` in the project root.
 - **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
+- **Batch restriction:** Multiple `extract` calls in the same batch are blocked — only the first one executes.
 
 ## Style
 
@@ -72,5 +73,5 @@ Returns human-readable date string.
 ## Related docs
 
 - `ARCHITECTURE.md` — Detailed architecture overview
+- `EVENTS.md` — Pi events used by the extension
 - `INSIGHTS.md` — Development insights and lessons learned
-- `docs/extensions.md` — Pi extension API reference
