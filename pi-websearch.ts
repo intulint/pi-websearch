@@ -755,7 +755,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "extract",
     label: "Extract Content",
-    description: "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs.",
+    description: "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls."
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { description: "URLs to extract from" }),
       prompt: Type.Optional(Type.String({ description: "What data to extract from the page content" })),
