@@ -14,7 +14,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { chromium } from "playwright";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
