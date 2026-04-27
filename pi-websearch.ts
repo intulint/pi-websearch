@@ -62,6 +62,9 @@ let currentModelId = "";
 let currentProviderBaseUrl = "";
 let modelDetected = false;
 
+// Batch tracking — only the first extract in a batch is allowed
+let extractAllowed = true;
+
 
 
 function getModelInfo(): { url: string; model: string } | null {
@@ -755,7 +758,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "extract",
     label: "Extract Content",
-    description: "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls."
+    description: "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs.",
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { description: "URLs to extract from" }),
       prompt: Type.Optional(Type.String({ description: "What data to extract from the page content" })),
@@ -763,6 +766,14 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       useBrowser: Type.Optional(Type.Boolean({ description: "Use Playwright browser for JS-heavy sites (default: true)" })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+      if (!extractAllowed) {
+        return {
+          content: [{ type: "text", text: "Extract tool is already running in this batch. Only one extract call is allowed per batch. Wait for the first extract to complete before requesting another." }],
+          details: {},
+        };
+      }
+      extractAllowed = false;
+
       const result = await extractContent(
         params.urls,
         params.prompt || null,
