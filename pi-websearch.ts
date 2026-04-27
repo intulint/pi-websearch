@@ -717,6 +717,11 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   // Initial status log (will be updated by session_start or model_select handlers)
   logConfigStatus();
 
+  // Reset extract batch flag on each new user message (turn)
+  pi.on("turn_start", () => {
+    extractAllowed = true;
+  });
+
   // Register get_current_date tool — returns the current date in ISO format
   pi.registerTool({
     name: "get_current_date",
