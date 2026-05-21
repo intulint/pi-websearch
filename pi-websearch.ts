@@ -70,10 +70,8 @@ let extractAllowed = true;
 function getModelInfo(): { url: string; model: string } | null {
   // Priority: env vars (explicit model) > auto-detected from pi
   if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL) {
-    // Return env model if Pi model is not yet detected (startup) or if env model differs from Pi model
-    if (!currentModelId || FALLBACK_LLM_MODEL !== currentModelId) {
-      return { url: FALLBACK_LLM_URL, model: FALLBACK_LLM_MODEL };
-    }
+    // Always return env model as fallback (for startup or when it differs from Pi model)
+    return { url: FALLBACK_LLM_URL, model: FALLBACK_LLM_MODEL };
   }
   if (currentModelId && currentProviderBaseUrl) {
     return { url: currentProviderBaseUrl, model: currentModelId };
@@ -84,9 +82,12 @@ function getModelInfo(): { url: string; model: string } | null {
 function logConfigStatus(): void {
   const info = getModelInfo();
   if (info) {
-    console.log(
-      `pi-websearch: LLM configured — URL: ${info.url}, Model: ${info.model}`
-    );
+    // Only log if env model differs from Pi model (currentModelId is set after session_start or model_select)
+    if (currentModelId && info.model !== currentModelId) {
+      console.log(
+        `pi-websearch: LLM configured — URL: ${info.url}, Model: ${info.model}`
+      );
+    }
   } else {
     console.warn(
       "pi-websearch: No LLM configuration found.\n" +
