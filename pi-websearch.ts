@@ -688,14 +688,14 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       }
     }
 
-    // Log if model from .env differs from Pi model
+    // Log if .env model differs from Pi model
     if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL !== modelId) {
+      logConfigStatus();
+    } else if (!FALLBACK_LLM_URL) {
+      // No .env model, log Pi model config
       logConfigStatus();
     }
   });
-
-  // Log configuration at startup (will be updated by session_start or model_select handlers)
-  logConfigStatus();
 
   // Reset extract batch flag on each new user message (turn)
   pi.on("turn_start", () => {
