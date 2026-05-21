@@ -688,12 +688,16 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       }
     }
 
-    // Log if .env model differs from Pi model
+    // Log if .env model exists and differs from Pi model
     if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL !== modelId) {
-      logConfigStatus();
-    } else if (!FALLBACK_LLM_URL) {
+      console.log(
+        `pi-websearch: LLM configured — URL: ${FALLBACK_LLM_URL}, Model: ${FALLBACK_LLM_MODEL}`
+      );
+    } else if (!FALLBACK_LLM_URL && currentProviderBaseUrl) {
       // No .env model, log Pi model config
-      logConfigStatus();
+      console.log(
+        `pi-websearch: LLM configured — URL: ${currentProviderBaseUrl}, Model: ${modelId}`
+      );
     }
   });
 
