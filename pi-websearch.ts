@@ -79,23 +79,6 @@ function getModelInfo(): { url: string; model: string } | null {
   return null;
 }
 
-function logConfigStatus(): void {
-  const info = getModelInfo();
-  if (info) {
-    // Only log if env model differs from Pi model (currentModelId is set after session_start or model_select)
-    if (currentModelId && info.model !== currentModelId) {
-      console.log(
-        `pi-websearch: LLM configured — URL: ${info.url}, Model: ${info.model}`
-      );
-    }
-  } else {
-    console.warn(
-      "pi-websearch: No LLM configuration found.\n" +
-      "Set LLM_URL and LLM_MODEL in .env, or switch to a model in pi."
-    );
-  }
-}
-
 // ============================================================================
 // LLM URL Helper — smart /v1/chat/completions prefix handling
 // ============================================================================
@@ -688,15 +671,10 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       }
     }
 
-    // Log if .env model exists and differs from Pi model
+    // Log if .env model differs from Pi model
     if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL !== modelId) {
       console.log(
         `pi-websearch: LLM configured — URL: ${FALLBACK_LLM_URL}, Model: ${FALLBACK_LLM_MODEL}`
-      );
-    } else if (!FALLBACK_LLM_URL && currentProviderBaseUrl) {
-      // No .env model, log Pi model config
-      console.log(
-        `pi-websearch: LLM configured — URL: ${currentProviderBaseUrl}, Model: ${modelId}`
       );
     }
   });
