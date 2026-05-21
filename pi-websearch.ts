@@ -70,7 +70,10 @@ let extractAllowed = true;
 function getModelInfo(): { url: string; model: string } | null {
   // Priority: env vars (explicit model) > auto-detected from pi
   if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL) {
-    return { url: FALLBACK_LLM_URL, model: FALLBACK_LLM_MODEL };
+    // Return env model if Pi model is not yet detected (startup) or if env model differs from Pi model
+    if (!currentModelId || FALLBACK_LLM_MODEL !== currentModelId) {
+      return { url: FALLBACK_LLM_URL, model: FALLBACK_LLM_MODEL };
+    }
   }
   if (currentModelId && currentProviderBaseUrl) {
     return { url: currentProviderBaseUrl, model: currentModelId };
@@ -622,13 +625,9 @@ async function extractContent(
 // ============================================================================
 
 export default function piWebsearch(pi: ExtensionAPI): void {
-  console.log("pi-websearch: Loading web search and extraction tools");
-  console.log(`  SEARCH_PROVIDER: ${SEARCH_PROVIDER}`);
-
-  // Listen for model changes to auto-detect the active LLM
+  // Listen for model changes to auto-detect the active LLM (no logging)
   pi.on("model_select", async (event, ctx) => {
     const modelId = event.model?.id ?? "";
-    const providerName = event.model?.provider ?? "";
 
     if (!modelId) {
       console.warn("pi-websearch: model_select fired but model.id is empty");
@@ -645,27 +644,16 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     }
 
     if (baseUrl) {
-      console.log(
-        `pi-websearch: Model detected — ${providerName}/${modelId} → ${baseUrl}`
-      );
-      logConfigStatus();
-    } else if (providerName && ctx.modelRegistry) {
+      currentProviderBaseUrl = baseUrl;
+    } else if (ctx.modelRegistry) {
       // Fallback: look up the model in the registry
-      const foundModel = ctx.modelRegistry.find(providerName, modelId);
+      const foundModel = ctx.modelRegistry.find(event.model?.provider ?? "", modelId);
       if (foundModel) {
         baseUrl = (foundModel as any).baseUrl || "";
       }
 
       if (baseUrl) {
-        console.log(
-          `pi-websearch: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
-        );
-        logConfigStatus();
-      } else {
-        console.warn(
-          `pi-websearch: Model ${modelId} detected, but baseUrl is not available. ` +
-          `Falling back to .env variables.`
-        );
+        currentProviderBaseUrl = baseUrl;
       }
     }
   });
@@ -687,10 +675,6 @@ export default function piWebsearch(pi: ExtensionAPI): void {
 
     if (baseUrl) {
       currentProviderBaseUrl = baseUrl;
-      console.log(
-        `pi-websearch: Model already selected — ${providerName}/${modelId} → ${baseUrl}`
-      );
-      logConfigStatus();
     } else if (ctx.modelRegistry) {
       // Fallback: look up the model in the registry
       const foundModel = ctx.modelRegistry.find(providerName, modelId);
@@ -700,21 +684,16 @@ export default function piWebsearch(pi: ExtensionAPI): void {
 
       if (baseUrl) {
         currentProviderBaseUrl = baseUrl;
-        console.log(
-          `pi-websearch: Model found in registry — ${providerName}/${modelId} → ${baseUrl}`
-        );
-        logConfigStatus();
-      } else {
-        console.warn(
-          `pi-websearch: Model ${modelId} detected, but baseUrl is not available. ` +
-          `Falling back to .env variables.`
-        );
-        logConfigStatus();
       }
+    }
+
+    // Log if model from .env differs from Pi model
+    if (FALLBACK_LLM_URL && FALLBACK_LLM_MODEL !== modelId) {
+      logConfigStatus();
     }
   });
 
-  // Initial status log (will be updated by session_start or model_select handlers)
+  // Log configuration at startup (will be updated by session_start or model_select handlers)
   logConfigStatus();
 
   // Reset extract batch flag on each new user message (turn)
