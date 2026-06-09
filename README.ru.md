@@ -15,7 +15,7 @@
 Установка через `pi install`:
 
 ```bash
-pi install github:user/pi-websearch
+pi install github:intulint/pi-websearch
 ```
 
 Или установка из локальной папки:
