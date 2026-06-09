@@ -22,7 +22,7 @@ npx playwright install chromium
 ```
 
 Runtime deps: `playwright`, `typebox`.
-Peer deps (for type stubs): `@mariozechner/pi-coding-agent`, `@sinclair/typebox`.
+Peer deps (for type stubs): `@mariozechner/pi-coding-agent`.
 
 ## Configuration
 
@@ -35,7 +35,7 @@ LLM_MODEL=qwen3.5-27b
 
 - `LLM_URL` + `LLM_MODEL` — explicit model (overrides auto-detection)
 
-If no `.env` exists, the extension auto-detects the active Pi model from the model registry.
+If no `.env` exists, the extension auto-detects the active Pi model.
 
 ## Tools
 
