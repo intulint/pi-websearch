@@ -127,20 +127,6 @@ const headers = {
 - Simple HTTP client can replicate browser behavior with proper headers
 - No external dependencies beyond Node.js stdlib
 
-## Retry Strategy
-
-```typescript
-async function retry<T>(fn, { maxAttempts = 5, minTimeout = 2000, multiplier = 2 }) {
-  // Exponential backoff with jitter
-  const timeout = Math.min(minTimeout * Math.pow(multiplier, attempts - 1), 60000) * (1 - Math.random() * 0.5);
-}
-```
-
-- Max 5 attempts with exponential backoff (2s, 4s, 8s, 16s, 32s)
-- Jitter (50-100%) to avoid thundering herd
-- No-results errors are not retried
-- Timeout is capped at 60 seconds
-
 ## Testing Results
 
 ### Successful queries:
@@ -169,6 +155,6 @@ For TypeScript, we replicate the browser-like header approach since the Python l
 2. **Headless browsers are detected** — `headless: true` in Playwright triggers anti-bot measures
 3. **HTML parsing requires lookahead** — Simple `</div>` matching fails with nested structures
 4. **Redirect URL decoding is necessary** — DuckDuckGo uses `uddg=` parameter for actual URLs
-5. **Retry with backoff is essential** — Transient errors (bot detection triggers) should be retried
-6. **User-agent rotation helps** — Randomly selecting from multiple desktop UAs reduces pattern detection
-7. **No external search libraries work reliably** — `duck-duck-scrape` is blocked; custom HTTP approach is best
+5. **User-agent rotation helps** — 5 desktop UAs randomly selected reduce pattern detection
+6. **No external search libraries work reliably** — `duck-duck-scrape` is blocked; custom HTTP approach is best
+7. **No retry logic implemented** — transient errors (bot detection, timeouts) are not retried; user must retry manually

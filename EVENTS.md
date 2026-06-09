@@ -85,19 +85,20 @@ Session starts
             └─ turn_start → reset extractAllowed = true (repeat)
 ```
 
-## Model Detection Flow
+## Model Resolution Priority
+
+The model is resolved in `resolveModel()` with this priority:
 
 ```
-session_start / model_select
+resolveModel()
     │
-    ├─ Priority 1: ctx.model.baseUrl
-    │   └─ Direct access to model's baseUrl
+    ├─ Priority 1: .env (LLM_URL + LLM_MODEL)
+    │   └─ Explicit override — checked first, always wins
     │
-    ├─ Priority 2: ctx.modelRegistry.find(provider, modelId)
-    │   └─ Look up baseUrl from model registry
-    │
-    └─ Fallback: .env variables (LLM_URL, LLM_MODEL)
-        └─ Explicit override from .env file
+    └─ Priority 2: auto-detected from Pi
+        ├─ ctx.model.id → detectedModelId
+        ├─ ctx.model.baseUrl → detectedBaseUrl
+        └─ fallback: ctx.modelRegistry.find(provider, modelId)
 ```
 
 ## Notes
