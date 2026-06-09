@@ -30,15 +30,11 @@
     "playwright"
   ],
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "@mariozechner/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
-  },
-  "bundleDependencies": [
-    "playwright"
-  ]
+  }
 }
