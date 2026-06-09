@@ -173,6 +173,7 @@ async function httpGet(url: string, timeoutMs = 30000): Promise<string> {
       req.destroy();
       reject(new Error("Request timeout"));
     });
+    req.end();
   });
 }
 
@@ -393,6 +394,7 @@ async function searchDdg(
       req.destroy();
       reject(new Error("Request timeout"));
     });
+    req.end();
   });
 }
 
