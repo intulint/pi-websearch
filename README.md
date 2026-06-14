@@ -107,6 +107,7 @@ Optionally create a `.env` file in the extension directory:
 # Explicit LLM model (overrides auto-detection from Pi)
 LLM_URL=http://localhost:1234
 LLM_MODEL=qwen3.5-27b
+LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 ```
 
 ## Model Selection
@@ -114,9 +115,9 @@ LLM_MODEL=qwen3.5-27b
 The extension selects the LLM model using the following priority:
 
 1. **Explicit model from `.env`** — if `.env` exists with `LLM_URL` and `LLM_MODEL`, these are used
-2. **Auto-detected model from Pi** — if no `.env`, the extension detects the currently active model in Pi via `session_start` and `model_select` events, using its `baseUrl`
+2. **Auto-detected model from Pi** — if no `.env`, the extension detects the currently active model in Pi via `session_start` and `model_select` events, using its `baseUrl` and `apiKey`
 
-The LLM endpoint is constructed as `{baseUrl}/v1/chat/completions`.
+The LLM endpoint is constructed as `{baseUrl}/v1/chat/completions`. If an API key is available (from `.env` or Pi's model registry), it's sent as a Bearer token in the `Authorization` header.
 
 ## Batch Restrictions
 

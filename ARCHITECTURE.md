@@ -166,7 +166,8 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │   │   {
     │   │     model: LLM_MODEL,
     │   │     messages: [{ role: "system", ... }, { role: "user", ... }],
-    │   │     temperature: 0.1
+    │   │     temperature: 0.1,
+    │   │     Headers: { Authorization: Bearer {apiKey} }  // если apiKey доступен
     │   │   }
     │   │
     │   └─ response.choices[0].message.content

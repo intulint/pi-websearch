@@ -33,6 +33,7 @@ const HAS_EXPLICIT_ENV = !!(ENV_LLM_URL && ENV_LLM_MODEL);
 
 let detectedModelId = "";
 let detectedBaseUrl = "";
+let detectedApiKey = "";
 let extractAllowed = true;
 
 // ============================================================================
@@ -59,9 +60,9 @@ function loadEnvFile(path: string): void {
 // Model resolution
 // ============================================================================
 
-function resolveModel(): { url: string; model: string } | null {
+function resolveModel(): { url: string; model: string; apiKey?: string } | null {
   if (HAS_EXPLICIT_ENV) return { url: ENV_LLM_URL, model: ENV_LLM_MODEL };
-  if (detectedModelId && detectedBaseUrl) return { url: detectedBaseUrl, model: detectedModelId };
+  if (detectedModelId && detectedBaseUrl) return { url: detectedBaseUrl, model: detectedModelId, apiKey: detectedApiKey || undefined };
   return null;
 }
 
@@ -74,7 +75,7 @@ function buildChatUrl(baseUrl: string): string {
 
 function resolveModelFromPi(
   source: { id?: string; provider?: string; baseUrl?: string } | undefined,
-  registry: { find: (p: string, id: string) => { baseUrl?: string } | undefined } | undefined,
+  registry: { find: (p: string, id: string) => { baseUrl?: string; apiKey?: string } | undefined } | undefined,
 ): void {
   if (!source?.id) return;
   const id = source.id;
@@ -85,6 +86,7 @@ function resolveModelFromPi(
   } else if (registry) {
     const found = registry.find(source.provider ?? "", id);
     if (found?.baseUrl) detectedBaseUrl = found.baseUrl;
+    if (found?.apiKey) detectedApiKey = found.apiKey;
   }
 }
 
@@ -181,6 +183,7 @@ async function httpPostJson(
   url: string,
   body: unknown,
   timeoutMs = 60000,
+  apiKey?: string,
 ): Promise<unknown> {
   const { request } = await import("node:https");
   const { request: httpRequest } = await import("node:http");
@@ -190,15 +193,20 @@ async function httpPostJson(
   const client = parsed.protocol === "https:" ? request : httpRequest;
   const payload = JSON.stringify(body);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(payload),
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
   return new Promise((resolve, reject) => {
     const req = client(
       url,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-        },
+        headers,
         timeout: timeoutMs,
       },
       (res) => {
@@ -540,6 +548,7 @@ async function llmExtract(
       temperature: 0.1,
     },
     600000,
+    llmConfig.apiKey,
   );
 
   const data = response as Record<string, unknown>;
