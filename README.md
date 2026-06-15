@@ -119,6 +119,14 @@ The extension selects the LLM model using the following priority:
 
 The LLM endpoint is constructed as `{baseUrl}/v1/chat/completions`. If an API key is available (from `.env` or Pi's model registry), it's sent as a Bearer token in the `Authorization` header.
 
+### Extract tool model behavior
+
+The `extract` tool uses the configured model for the LLM call, then **restores the original Pi model** after completion:
+
+- With `.env`: switches to `.env` model → LLM call → restores original Pi model
+- Without `.env`: no switch, uses auto-detected Pi model directly
+- Restoration always happens in a `finally` block — even on error, the Pi model is restored
+
 ## Batch Restrictions
 
 - **`extract`**: Only one `extract` call is allowed per batch. If the agent sends multiple `extract` calls in a single request, only the first one executes — others return an error immediately instead of hanging until timeout.

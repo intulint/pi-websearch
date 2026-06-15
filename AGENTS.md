@@ -4,7 +4,7 @@
 
 A pi extension package providing three tools: `search_web`, `extract`, and `get_current_date`.
 The extension auto-detects the active LLM model from Pi's model registry.
-Optionally override LLM settings via `.env` file.
+Optionally override LLM settings via `.env` file — when `.env` exists, the `extract` tool **uses the .env model for the LLM call, then restores the original Pi model** after completion.
 
 ## Entry point and structure
 
@@ -36,6 +36,39 @@ LLM_MODEL=qwen3.5-27b
 - `LLM_URL` + `LLM_MODEL` — explicit model (overrides auto-detection)
 
 If no `.env` exists, the extension auto-detects the active Pi model.
+
+## .env behavior
+
+When `LLM_URL` and `LLM_MODEL` are set in `.env`, the extension:
+
+1. At `session_start` — registers/overwrites provider `env-overridden` with `pi.registerProvider()` (`openai-completions` API)
+2. At `session_shutdown` — resets `envProviderRegistered` flag so the provider is re-registered on next `session_start` (handles `.env` changes)
+3. When `extract` tool is called:
+   - Captures the current Pi model from `_ctx.model` (provider, id, registry entry)
+   - **Always** switches to the `.env` model via `pi.setModel()` (if `.env` is configured)
+   - Executes the LLM call — `resolveModel()` prefers `.env` config over auto-detected
+   - **Always** restores the original Pi model via `pi.setModel()` in `finally` block (even on error)
+4. If no `.env` is set — `extract` uses the auto-detected Pi model, no switching occurs
+
+Model switching is unconditional when `.env` is configured — it does **not** depend on `originalProvider`/`originalId` being present.
+
+The model ID in `.env` is sanitized (slashes/colons → dashes) because Pi model IDs don't support those characters. The original `.env` model name is kept as the display `name`.
+
+To manually switch model: use `/model` in Pi or change `.env` and reload.
+
+## Model resolution flow
+
+```
+resolveModel()
+    │
+    ├─ Priority 1: .env (LLM_URL + LLM_MODEL)
+    │   └─ Always checked first, always wins when both are set
+    │
+    └─ Priority 2: auto-detected from Pi
+        ├─ ctx.model.id → detectedModelId
+        ├─ ctx.model.baseUrl → detectedBaseUrl
+        └─ fallback: ctx.modelRegistry.find(provider, modelId)
+```
 
 ## Tools
 

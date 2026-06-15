@@ -625,17 +625,52 @@ async function extractContent(
 // Pi extension
 // ============================================================================
 
+// Store pi reference for model switching inside extract tool
+let _piRef: ExtensionAPI | undefined;
+let envProviderRegistered = false;
+
 export default function piWebsearch(pi: ExtensionAPI): void {
+  _piRef = pi;
+
   // --- Model events ---
 
   pi.on("session_start", async (_event, ctx) => {
     resolveModelFromPi(ctx.model, ctx.modelRegistry);
     ensureEnvLoaded();
+
+    // Register env provider once per session
     if (cachedEnvUrl && cachedEnvModel) {
+      const safeId = cachedEnvModel.replace(/[/:]/g, "-");
+      const providerName = "env-overridden";
+
+      const providerConfig: Record<string, unknown> = {
+        name: "Env Overridden",
+        baseUrl: cachedEnvUrl,
+        api: "openai-completions",
+        models: [
+          {
+            id: safeId,
+            name: cachedEnvModel,
+            input: ["text"],
+            contextWindow: 131072,
+          },
+        ],
+      };
+      if (cachedEnvApiKey) {
+        (providerConfig as { apiKey?: string }).apiKey = cachedEnvApiKey;
+      }
+      // Always register/overwrite env provider so the latest .env is active
+      pi.registerProvider(providerName, providerConfig as any);
+      envProviderRegistered = true;
       console.log(
-        `pi-websearch: LLM configured — URL: ${cachedEnvUrl}, Model: ${cachedEnvModel}`,
+        `pi-websearch: Registered provider "${providerName}" (model: ${cachedEnvModel})`,
       );
     }
+  });
+
+  pi.on("session_shutdown", () => {
+    // Reset so a new session registers the (possibly updated) env provider
+    envProviderRegistered = false;
   });
 
   pi.on("model_select", async (event, _ctx) => {
@@ -717,18 +752,47 @@ export default function piWebsearch(pi: ExtensionAPI): void {
         };
       }
       extractAllowed = false;
+
+      // Capture original model info for restoration after tool execution
+      const originalProvider = _ctx.model?.provider;
+      const originalId = _ctx.model?.id;
+      const origModel =
+        (originalProvider && originalId
+          ? _ctx.modelRegistry?.find(originalProvider, originalId)
+          : undefined) as Record<string, unknown> | undefined;
+
       try {
-        const result = await extractContent(
-          params.urls,
-          params.prompt || null,
-          params.schema || null,
-          params.useBrowser !== false,
-        );
-        return { content: [{ type: "text", text: result }], details: {} };
+        try {
+          // Switch to .env model for the LLM call (if .env is configured)
+          // Note: extractContent() calls resolveModel() which already prefers .env,
+          // but switching via setModel ensures the Pi UI reflects the active model.
+          if (_piRef && cachedEnvUrl && cachedEnvModel) {
+            const safeId = cachedEnvModel.replace(/[/:]/g, "-");
+            const envModel = _ctx.modelRegistry?.find("env-overridden", safeId);
+            if (envModel) {
+              await _piRef.setModel(envModel as any);
+              console.log(`pi-websearch: extract → switched to ${envModel.provider}/${envModel.id}`);
+            }
+          }
+
+          const result = await extractContent(
+            params.urls,
+            params.prompt || null,
+            params.schema || null,
+            params.useBrowser !== false,
+          );
+          return { content: [{ type: "text", text: result }], details: {} };
+        } finally {
+          // Restore original Pi model after tool execution
+          if (_piRef && originalProvider && originalId && origModel) {
+            await _piRef.setModel(origModel as any);
+            console.log(`pi-websearch: extract → restored to ${originalProvider}/${originalId}`);
+          }
+        }
       } catch (e) {
         extractAllowed = true; // Reset on error so next turn can retry
         throw e;
       }
-    },
+  },
   });
 }

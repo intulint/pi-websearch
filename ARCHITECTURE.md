@@ -46,11 +46,12 @@ Pi Coding Agent
    │    ├─ 3.2. Определяет модель LLM (приоритет: .env > auto-detect из Pi)
    │    │
    │    ├─ 3.3. Выводит конфиг в консоль
-   │    │     → "pi-websearch: Loading web search and extraction tools"
+   │    │     → "pi-websearch: Registered provider "env-overridden" (model: ...)"
    │    │
-   │    ├─ 3.4. Подписывается на события Pi: model_select, session_start, turn_start
-   │    │     → Обновляет currentModelId / currentProviderBaseUrl
+   │    ├─ 3.4. Подписывается на события Pi: model_select, session_start, session_shutdown, turn_start
+   │    │     → Обновляет detectedModelId / detectedBaseUrl
    │    │     → Сбрасывает extractAllowed флаг при новом сообщении
+   │    │     → Сбрасывает envProviderRegistered при session_shutdown
    │    │
    │    └─ 3.5. Регистрирует 3 инструмента через pi.registerTool()
    │          → get_current_date, search_web, extract
@@ -127,6 +128,8 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │   ├─ false → return error immediately (batch restriction)
     │   └─ true  → set extractAllowed = false
     │
+    ├─ Capture original Pi model (provider, id, registry entry)
+    │
     ├─ params = {
     │     urls: ["https://site1.com", "https://site2.com"],
     │     prompt: "Извлеки все цены товаров",
@@ -136,6 +139,9 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │
     ├─ (!prompt && !schema) ?
     │   └─ YES → return error
+    │
+    ├─ Switch to .env model via setModel() (if .env configured)
+    │   → Pi UI reflects active model change
     │
     ├─ for each url in urls:
     │   │
@@ -155,6 +161,10 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │
     ├─ llmExtract(combined, prompt, schema)
     │   │
+    │   ├─ resolveModel() → prefers .env config
+    │   │   → if .env exists: uses .env URL/model/apiKey
+    │   │   → if no .env: uses auto-detected Pi model
+    │   │
     │   ├─ System prompt:
     │   │   "You are a data extraction assistant..."
     │   │   + schema (if provided)
@@ -167,10 +177,13 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │   │     model: LLM_MODEL,
     │   │     messages: [{ role: "system", ... }, { role: "user", ... }],
     │   │     temperature: 0.1,
-    │   │     Headers: { Authorization: Bearer {apiKey} }  // если apiKey доступен
+    │   │     Headers: { Authorization: Bearer {apiKey} }
     │   │   }
     │   │
     │   └─ response.choices[0].message.content
+    │
+    ├─ Finally: restore original Pi model via setModel()
+    │   → Always restores, even on error
     │
     ├─ logToolCall("extract", params, result)
     │   → tool_calls.log.json
@@ -184,6 +197,11 @@ pi.registerTool({ name: "extract" }) → execute(params)
 **Таймауты:** 60 секунд на fetch, 10 минут на LLM
 
 **Batch restriction:** Only one extract per batch. Resets on `turn_start`.
+
+**Model switching behavior:**
+- If `.env` is configured: `setModel(.env model)` → LLM call → `setModel(original Pi model)`
+- If `.env` is NOT configured: no switch, LLM uses auto-detected Pi model
+- Restoration happens in `finally` block — always executes, even on error
 
 ---
 

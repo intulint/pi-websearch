@@ -44,6 +44,23 @@ pi.on("model_select", async (event, ctx) => {
 
 ---
 
+### `session_shutdown`
+
+**When fires:** When a session is closing (exit, /reload, /new, /fork, /clone).
+
+**Used for:** Reset `envProviderRegistered` flag so the env provider is re-registered on the next `session_start` (handles `.env` file changes).
+
+**Handler:**
+```typescript
+pi.on("session_shutdown", () => {
+  envProviderRegistered = false;
+});
+```
+
+**Priority:** Low — ensures `.env` changes are picked up after reload.
+
+---
+
 ### `turn_start`
 
 **When fires:** At the start of each new user message (turn).
@@ -68,7 +85,7 @@ pi.on("turn_start", () => {
 ```
 Session starts
     │
-    ├─ session_start → detect current model
+    ├─ session_start → detect current model, register .env provider
     │
     └─ User sends message
         │
@@ -76,13 +93,22 @@ Session starts
         │
         ├─ Tool calls (search_web, extract, get_current_date)
         │   │
-        │   └─ extract: check extractAllowed flag
-        │       ├─ true → execute, set extractAllowed = false
-        │       └─ false → return error immediately
+        │   └─ extract:
+        │       ├─ check extractAllowed flag
+        │       │   ├─ false → return error immediately
+        │       │   └─ true  → set extractAllowed = false
+        │       ├─ capture original Pi model (provider, id, registry)
+        │       ├─ switch to .env model (if .env configured)
+        │       ├─ execute LLM call (resolveModel prefers .env)
+        │       └─ finally: restore original Pi model (always)
         │
         └─ User sends next message
             │
             └─ turn_start → reset extractAllowed = true (repeat)
+
+Session ends (exit, /reload, /fork)
+    │
+    └─ session_shutdown → reset envProviderRegistered
 ```
 
 ## Model Resolution Priority
@@ -104,6 +130,8 @@ resolveModel()
 ## Notes
 
 - Events are subscribed to during extension initialization (`piWebsearch()` function).
-- All event handlers are synchronous except `session_start` and `model_select` which are async.
-- The `turn_start` handler is synchronous and only resets a boolean flag.
-- If no LLM configuration is found, the extension logs a warning but continues loading.
+- `session_start`, `model_select` handlers are async. Others are synchronous.
+- The `turn_start` handler only resets the `extractAllowed` boolean flag.
+- The `session_shutdown` handler resets `envProviderRegistered` for fresh provider registration.
+- When `.env` is configured, `extract` tool **always** uses the `.env` model and **always** restores the original Pi model after execution.
+- If no LLM configuration is found, `extract` throws an error.
