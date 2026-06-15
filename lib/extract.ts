@@ -210,9 +210,8 @@ export async function extractContent(
   useBrowser: boolean = true,
 ): Promise<string> {
   if (!prompt && !schema) {
-    const err = JSON.stringify({ error: "At least one of prompt or schema is required." });
-    logToolCall("extract", { urls }, err);
-    return err;
+    logToolCall("extract", { urls }, JSON.stringify({ error: "At least one of prompt or schema is required." }));
+    throw new Error("At least one of prompt or schema is required.");
   }
 
   const parts: string[] = [];

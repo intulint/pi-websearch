@@ -14,9 +14,9 @@ export let cachedEnvUrl = "";
 export let cachedEnvModel = "";
 export let cachedEnvApiKey = "";
 
-export let detectedModelId = "";
-export let detectedBaseUrl = "";
-export let detectedApiKey = "";
+let detectedModelId = "";
+let detectedBaseUrl = "";
+let detectedApiKey = "";
 
 // ============================================================================
 // Env loader
@@ -89,6 +89,12 @@ export function buildChatUrl(baseUrl: string): string {
   if (url.endsWith("/v1")) return `${url}/chat/completions`;
   // Default: assume "/v1" base
   return `${url}/v1/chat/completions`;
+}
+
+export function updateDetectedModel(id: string, baseUrl?: string, apiKey?: string): void {
+  detectedModelId = id;
+  if (baseUrl) detectedBaseUrl = baseUrl;
+  if (apiKey !== undefined) detectedApiKey = apiKey;
 }
 
 export function resolveModelFromPi(

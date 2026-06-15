@@ -9,7 +9,6 @@ import { httpGetRaw } from "./http.js";
 // ============================================================================
 
 const DDG_TIMEOUT_MS = 15_000;
-const DDG_EXCLUDE_SITES = "-site:grokipedia.com";
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
@@ -81,8 +80,7 @@ export async function searchDdg(
   const ddgQuery = query.trim();
   if (!ddgQuery) throw new Error("Search query cannot be empty");
 
-  const fullQuery = `${ddgQuery} ${DDG_EXCLUDE_SITES}`;
-  const url = buildSearchUrl(fullQuery);
+  const url = buildSearchUrl(ddgQuery);
   const headers = buildHeaders();
 
   const { status, decompressedBody: html } = await httpGetRaw(url, {

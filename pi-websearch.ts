@@ -22,6 +22,7 @@ import { join, dirname } from "path";
 import {
   initConfig,
   resolveModelFromPi,
+  updateDetectedModel,
   cachedEnvUrl,
   cachedEnvModel,
   cachedEnvApiKey,
@@ -117,11 +118,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   pi.on("model_select", (event, _ctx) => {
     const m = event.model as ExtModel | undefined;
     if (m?.id) {
-      // Access internal state via re-imported module
-      import("./lib/config.js").then((config) => {
-        config.detectedModelId = m.id;
-        if (m.baseUrl) config.detectedBaseUrl = m.baseUrl;
-      });
+      updateDetectedModel(m.id, m.baseUrl);
     }
   });
 

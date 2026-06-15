@@ -3,6 +3,7 @@
  * Handles redirects, gzip/br/deflate decompression, timeouts, abort signals.
  */
 
+import { gunzipSync, brotliDecompressSync, inflateSync } from "node:zlib";
 import { fetch, ProxyAgent, Agent } from "undici";
 import type { RequestInit, Response, Dispatcher } from "undici";
 
@@ -94,18 +95,12 @@ function decompressBody(body: Uint8Array, contentEncoding?: string): string {
   if (!contentEncoding) return text;
   try {
     switch (contentEncoding) {
-      case "gzip": {
-        const zlib = require("node:zlib");
-        return zlib.gunzipSync(Buffer.from(body)).toString("utf-8");
-      }
-      case "br": {
-        const zlib = require("node:zlib");
-        return zlib.brotliDecompressSync(Buffer.from(body)).toString("utf-8");
-      }
-      case "deflate": {
-        const zlib = require("node:zlib");
-        return zlib.inflateSync(Buffer.from(body)).toString("utf-8");
-      }
+      case "gzip":
+        return gunzipSync(Buffer.from(body)).toString("utf-8");
+      case "br":
+        return brotliDecompressSync(Buffer.from(body)).toString("utf-8");
+      case "deflate":
+        return inflateSync(Buffer.from(body)).toString("utf-8");
       default:
         return text;
     }
