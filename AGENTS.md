@@ -8,9 +8,14 @@ Optionally override LLM settings via `.env` file — when `.env` exists, the `ex
 
 ## Entry point and structure
 
-- **Entry:** `pi-websearch.ts` (single file, no `src/` directory)
+- **Entry:** `pi-websearch.ts` (single entry, imports from `lib/`)
 - **No build step.** Pi loads `.ts` via jiti. Never add a build step.
-- **Test files:** `test-search.ts`, `test-search-regular.ts` — manual search tests
+- **Modules:**
+  - `lib/config.ts` — .env loading, model resolution, env provider setup
+  - `lib/http.ts` — Unified HTTP client (GET/POST, redirects, gzip/br decompression, timeouts, abort signals)
+  - `lib/logger.ts` — Debounced tool call logging with in-memory buffer
+  - `lib/search.ts` — DuckDuckGo HTML scraping
+  - `lib/extract.ts` — Page fetching (HTTP + Playwright) + LLM extraction
 
 ## Dependencies
 
@@ -31,9 +36,11 @@ Create a `.env` file to override defaults:
 ```env
 LLM_URL=http://localhost:1234
 LLM_MODEL=qwen3.5-27b
+LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 ```
 
 - `LLM_URL` + `LLM_MODEL` — explicit model (overrides auto-detection)
+- `LLM_API_KEY` — API key for authenticated endpoints
 
 If no `.env` exists, the extension auto-detects the active Pi model.
 
@@ -42,7 +49,7 @@ If no `.env` exists, the extension auto-detects the active Pi model.
 When `LLM_URL` and `LLM_MODEL` are set in `.env`, the extension:
 
 1. At `session_start` — registers/overwrites provider `env-overridden` with `pi.registerProvider()` (`openai-completions` API)
-2. At `session_shutdown` — resets `envProviderRegistered` flag so the provider is re-registered on next `session_start` (handles `.env` changes)
+2. At `session_shutdown` — resets `_envProviderRegistered` flag so the provider is re-registered on next `session_start` (handles `.env` changes)
 3. When `extract` tool is called:
    - Captures the current Pi model from `_ctx.model` (provider, id, registry entry)
    - **Always** switches to the `.env` model via `pi.setModel()` (if `.env` is configured)
@@ -96,12 +103,15 @@ Returns human-readable date string.
 - **Tool call logging:** All tool calls are logged to `tool_calls.log.json` in the project root.
 - **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
 - **Batch restriction:** Multiple `extract` calls in the same batch are blocked — only the first one executes.
+- **ESM imports:** All `.ts` imports use `.js` extensions (Node.js ESM convention). Jiti handles the mapping.
+- **Lazy .env reload:** `.env` is read lazily on `session_start`. Changes to `.env` survive `/reload` without restarting Pi.
 
 ## Style
 
-- No `any` types unless absolutely necessary.
+- No `any` types unless absolutely necessary (TypeBox schemas cast to `any` for pi compatibility).
 - Dynamic imports (`await import()`) are used for Node.js stdlib modules.
-- Follow patterns in `pi-websearch.ts` for tool registration and event handling.
+- Follow patterns in `lib/` for module organization.
+- Each module has a clear responsibility — don't add cross-dependencies.
 
 ## Related docs
 

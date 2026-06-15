@@ -19,6 +19,7 @@
   },
   "files": [
     "pi-websearch.ts",
+    "lib/",
     "README.md",
     "LICENSE"
   ],
