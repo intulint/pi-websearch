@@ -14,7 +14,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 
@@ -25,11 +25,32 @@ import { join, dirname } from "path";
 const EXTENSION_DIR = dirname(new URL(import.meta.url).pathname);
 const TOOL_CALL_LOG_PATH = join(EXTENSION_DIR, "tool_calls.log.json");
 
-loadEnvFile(join(EXTENSION_DIR, ".env"));
+// Env values are read lazily at runtime (not at module init),
+// so they survive jiti cache / /reload without session reset.
+function getEnvConfig(): { url: string; model: string; apiKey: string } {
+  return {
+    url: process.env.LLM_URL || "",
+    model: process.env.LLM_MODEL || "",
+    apiKey: process.env.LLM_API_KEY || "",
+  };
+}
 
-const ENV_LLM_URL = process.env.LLM_URL || "";
-const ENV_LLM_MODEL = process.env.LLM_MODEL || "";
-const HAS_EXPLICIT_ENV = !!(ENV_LLM_URL && ENV_LLM_MODEL);
+let lastEnvRead = "";
+let cachedEnvUrl = "";
+let cachedEnvModel = "";
+let cachedEnvApiKey = "";
+
+function ensureEnvLoaded(): void {
+  const fresh = getEnvConfig();
+  if (lastEnvRead !== EXTENSION_DIR) {
+    loadEnvFile(join(EXTENSION_DIR, ".env"));
+    const reloaded = getEnvConfig();
+    cachedEnvUrl = reloaded.url;
+    cachedEnvModel = reloaded.model;
+    cachedEnvApiKey = reloaded.apiKey;
+    lastEnvRead = EXTENSION_DIR;
+  }
+}
 
 let detectedModelId = "";
 let detectedBaseUrl = "";
@@ -61,7 +82,10 @@ function loadEnvFile(path: string): void {
 // ============================================================================
 
 function resolveModel(): { url: string; model: string; apiKey?: string } | null {
-  if (HAS_EXPLICIT_ENV) return { url: ENV_LLM_URL, model: ENV_LLM_MODEL };
+  ensureEnvLoaded();
+  if (cachedEnvUrl && cachedEnvModel) {
+    return { url: cachedEnvUrl, model: cachedEnvModel, apiKey: cachedEnvApiKey || undefined };
+  }
   if (detectedModelId && detectedBaseUrl) return { url: detectedBaseUrl, model: detectedModelId, apiKey: detectedApiKey || undefined };
   return null;
 }
@@ -101,6 +125,8 @@ const SearchWebParams = Type.Object({
   ),
 });
 
+export type SearchWebParamsType = Static<typeof SearchWebParams>;
+
 const ExtractParams = Type.Object({
   urls: Type.Array(Type.String(), { description: "URLs to extract from" }),
   prompt: Type.Optional(
@@ -115,6 +141,8 @@ const ExtractParams = Type.Object({
     }),
   ),
 });
+
+export type ExtractParamsType = Static<typeof ExtractParams>;
 
 // ============================================================================
 // HTTP helpers
@@ -195,7 +223,7 @@ async function httpPostJson(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Content-Length": Buffer.byteLength(payload),
+    "Content-Length": String(Buffer.byteLength(payload)),
   };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
@@ -602,9 +630,10 @@ export default function piWebsearch(pi: ExtensionAPI): void {
 
   pi.on("session_start", async (_event, ctx) => {
     resolveModelFromPi(ctx.model, ctx.modelRegistry);
-    if (HAS_EXPLICIT_ENV) {
+    ensureEnvLoaded();
+    if (cachedEnvUrl && cachedEnvModel) {
       console.log(
-        `pi-websearch: LLM configured — URL: ${ENV_LLM_URL}, Model: ${ENV_LLM_MODEL}`,
+        `pi-websearch: LLM configured — URL: ${cachedEnvUrl}, Model: ${cachedEnvModel}`,
       );
     }
   });
@@ -628,7 +657,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Current Date",
     description:
       "Get the current date in ISO format (YYYY-MM-DD) with day of week.",
-    parameters: Type.Object({}),
+    parameters: Type.Object({}) as any,
     async execute() {
       const now = new Date();
       const isoDate = now.toISOString().split("T")[0];
@@ -657,8 +686,8 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Web Search",
     description:
       "Search the web for a query. Returns titles, URLs, and snippet descriptions. Uses DuckDuckGo HTML scraping. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.",
-    parameters: SearchWebParams,
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+    parameters: SearchWebParams as any,
+    async execute(_toolCallId, params: SearchWebParamsType, _signal, _onUpdate, _ctx) {
       const limit = params.limit || 10;
       const data = await searchDdg(params.query, limit);
       const result = JSON.stringify(data, null, 2);
@@ -674,8 +703,8 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Extract Content",
     description:
       "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs.",
-    parameters: ExtractParams,
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+    parameters: ExtractParams as any,
+    async execute(_toolCallId, params: ExtractParamsType, _signal, _onUpdate, _ctx) {
       if (!extractAllowed) {
         return {
           content: [
