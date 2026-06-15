@@ -57,10 +57,26 @@
 ## Текущее состояние
 - ✅ `extract` — работает (загружает страницы через Playwright, LLM-вызов через undici)
 - ✅ `get_current_date` — работает
-- ❌ `search_web` — сломан (DDG блокирует через прокси)
+- ✅ `search_web` — **исправлен**
 
-## Следующему агенту
-1. Заменить HTTP-клиент в `lib/http.ts` на `node-tls-client` для impersonation
-2. Или использовать `child_process` для вызова `curl-impersonate`
-3. Протестировать search_web — должен возвращать 200 вместо 202
-4. Прокси: `http://192.168.1.10:2001`, NO_PROXY: `localhost,127.0.0.1,192.168.1.0/24,...`
+## Исправление search_web (2026-06-15)
+
+### Проблема
+DDG возвращал 202 Challenge при запросах через прокси-сервер `http://192.168.1.10:2001`.
+
+### Решение
+В `lib/http.ts`:
+1. Функция `getDispatcher()` теперь принимает опциональный URL
+2. Добавлена `shouldBypassProxy(url)` — проверяет, что хост — `duckduckgo.com`
+3. Для DDG-запросов используется `Agent` (прямое соединение, без прокси)
+4. Для остальных запросов — `ProxyAgent` (через прокси, как раньше)
+5. `new Dispatcher()` заменён на `new Agent()` — в undici v7 `Dispatcher` — абстрактный класс
+
+### Проверено
+- `search_web('hello world', 3)` → 3 результата (200 OK)
+- `httpGet('https://httpbin.org/get')` → через прокси (Origin: 144.31.98.113)
+
+### Почему не node-tls-client
+- Требует скачивания 15.7 MB native .so библиотеки
+- Native библиотека падает с Bus error (core dump) — несовместимость
+- Решение с прямым соединением для DDG проще и надёжнее

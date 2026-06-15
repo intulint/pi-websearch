@@ -3,17 +3,41 @@
  * Handles redirects, gzip/br/deflate decompression, timeouts, abort signals.
  */
 
-import { fetch, ProxyAgent, Dispatcher } from "undici";
-import type { RequestInit, Response } from "undici";
+import { fetch, ProxyAgent, Agent } from "undici";
+import type { RequestInit, Response, Dispatcher } from "undici";
 
 // ============================================================================
 // Proxy setup — undici reads HTTP_PROXY / HTTPS_PROXY via ProxyAgent
 // ============================================================================
 
-let _dispatcher: Dispatcher | undefined;
+let _proxyAgent: Dispatcher | undefined;
+let _directAgent: Dispatcher | undefined;
 
-function getDispatcher(): Dispatcher {
-  if (_dispatcher) return _dispatcher;
+/**
+ * Check if a URL should bypass the proxy and connect directly.
+ * DuckDuckGo blocks requests from the configured proxy IP (202 Challenge),
+ * so we always connect directly to duckduckgo.com.
+ */
+function shouldBypassProxy(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "duckduckgo.com" || host.endsWith(".duckduckgo.com");
+  } catch {
+    return false;
+  }
+}
+
+function getDispatcher(url?: string): Dispatcher | undefined {
+  // If URL is specified and should bypass proxy, use direct connection
+  if (url && shouldBypassProxy(url)) {
+    if (!_directAgent) {
+      _directAgent = new Agent({ connectTimeout: 30_000 });
+    }
+    return _directAgent;
+  }
+
+  // Cached proxy agent
+  if (_proxyAgent) return _proxyAgent;
 
   const proxyUrl =
     process.env.HTTP_PROXY ||
@@ -21,17 +45,11 @@ function getDispatcher(): Dispatcher {
     process.env.ALL_PROXY;
 
   if (!proxyUrl) {
-    _dispatcher = new Dispatcher(); // default no-op dispatcher
-    return _dispatcher;
+    _proxyAgent = new Agent({ connectTimeout: 30_000 });
+    return _proxyAgent;
   }
 
-  // Build NO_PROXY set
-  const noProxy = (process.env.NO_PROXY || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  _dispatcher = new ProxyAgent({
+  _proxyAgent = new ProxyAgent({
     uri: proxyUrl,
     proxyTunnel: false,
     requestTls: {
@@ -39,7 +57,7 @@ function getDispatcher(): Dispatcher {
     },
   });
 
-  return _dispatcher;
+  return _proxyAgent;
 }
 
 // ============================================================================
@@ -136,7 +154,7 @@ async function executeRequest(
 
   const response = await fetch(url, {
     ...init,
-    dispatcher: getDispatcher(),
+    dispatcher: getDispatcher(url),
   }) as Response;
 
   // Handle redirect (3xx with location header)
