@@ -92,7 +92,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
           {
             id: safeId,
             name: cachedEnvModel,
-            input: ["text"] as const,
+            input: ["text"],
             contextWindow: 131072,
           },
         ],
@@ -103,15 +103,15 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       // Always register/overwrite env provider so the latest .env is active
       pi.registerProvider(providerName, providerConfig as any);
       _envProviderRegistered = true;
-      console.log(
-        `pi-websearch: Registered provider "${providerName}" (model: ${cachedEnvModel})`,
-      );
     }
   });
 
   pi.on("session_shutdown", () => {
-    // Reset so a new session registers the (possibly updated) env provider
-    _envProviderRegistered = false;
+    // Clean up env provider and reset for next session
+    if (_envProviderRegistered) {
+      pi.unregisterProvider("env-overridden");
+      _envProviderRegistered = false;
+    }
     flushLogs();
   });
 
@@ -133,6 +133,10 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Current Date",
     description:
       "Get the current date in ISO format (YYYY-MM-DD) with day of week.",
+    promptSnippet: "Get the current date (YYYY-MM-DD with day of week)",
+    promptGuidelines: [
+      "Use get_current_date when you need to know today's date or day of week.",
+    ],
     parameters: Type.Object({}) as any,
     async execute() {
       const now = new Date();
@@ -155,15 +159,21 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Web Search",
     description:
       "Search the web for a query. Returns titles, URLs, and snippet descriptions. Uses DuckDuckGo HTML scraping. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.",
+    promptSnippet: "Search the web via DuckDuckGo (titles, URLs, descriptions)",
+    promptGuidelines: [
+      "Use search_web to find current information, documentation, or web pages before using extract.",
+      "Do NOT call search_web multiple times in a row — DuckDuckGo rate limits apply. Wait at least a few seconds between calls.",
+      "Start with a specific query; if results are poor, refine and retry with different terms.",
+    ],
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(
         Type.Number({ description: "Maximum number of results (default: 10)" }),
       ),
     }) as any,
-    async execute(_toolCallId, params: { query: string; limit?: number }, _signal, _onUpdate, _ctx) {
+    async execute(_toolCallId, params: { query: string; limit?: number }, signal, _onUpdate, _ctx) {
       const limit = params.limit ?? 10;
-      const data = await searchDdg(params.query, limit);
+      const data = await searchDdg(params.query, limit, signal);
       const result = JSON.stringify(data, null, 2);
       logToolCall("search_web", { query: params.query, limit, provider: "ddg" }, result);
       return { content: [{ type: "text", text: result }], details: {} };
@@ -177,6 +187,14 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Extract Content",
     description:
       "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs.",
+    promptSnippet: "Fetch URLs and extract structured data via local LLM",
+    promptGuidelines: [
+      "Use extract to fetch and parse web page content. Always use search_web first to find relevant URLs.",
+      "Use extract with a clear prompt describing exactly what data to extract. At least one of prompt or schema is required.",
+      "Only ONE extract call is allowed per batch — combine multiple URLs into a single extract call instead.",
+      "Set useBrowser: true (default) for JavaScript-heavy sites; false for simple/static pages.",
+      "If extract returns an empty result, it will explain why (login wall, blocked content, etc.) — do not retry blindly.",
+    ],
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { description: "URLs to extract from" }),
       prompt: Type.Optional(
@@ -194,7 +212,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       prompt?: string;
       schema?: unknown;
       useBrowser?: boolean;
-    }, _signal, _onUpdate, _ctx) {
+    }, signal, _onUpdate, _ctx) {
       if (!_extractAllowed) {
         return {
           content: [
@@ -217,29 +235,28 @@ export default function piWebsearch(pi: ExtensionAPI): void {
           : undefined) as ExtModelRegistryEntry | undefined;
 
       try {
-        try {
-          // Switch to .env model for the LLM call (if .env is configured)
-          if (_piRef && cachedEnvUrl && cachedEnvModel) {
-            const safeId = cachedEnvModel.replace(/[/:]/g, "-");
-            const envModel = _ctx.modelRegistry?.find("env-overridden", safeId);
-            if (envModel) {
-              await _piRef.setModel(envModel as any);
-              console.log(`pi-websearch: extract → switched to ${envModel.provider}/${envModel.id}`);
-            }
+        // Switch to .env model for the LLM call (if .env is configured)
+        if (_piRef && cachedEnvUrl && cachedEnvModel) {
+          const safeId = cachedEnvModel.replace(/[/:]/g, "-");
+          const envModel = _ctx.modelRegistry?.find("env-overridden", safeId);
+          if (envModel) {
+            await _piRef.setModel(envModel as any);
           }
+        }
 
+        try {
           const result = await extractContent(
             params.urls,
             params.prompt ?? null,
             params.schema ?? null,
             params.useBrowser !== false,
+            signal,
           );
           return { content: [{ type: "text", text: result }], details: {} };
         } finally {
           // Restore original Pi model after tool execution
           if (_piRef && originalProvider && originalId && origModel) {
             await _piRef.setModel(origModel as any);
-            console.log(`pi-websearch: extract → restored to ${originalProvider}/${originalId}`);
           }
         }
       } catch (e) {

@@ -10,5 +10,5 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },
-  "include": ["pi-websearch.ts"]
+  "include": ["pi-websearch.ts", "lib/**/*.ts"]
 }

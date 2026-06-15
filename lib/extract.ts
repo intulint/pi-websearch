@@ -12,6 +12,7 @@ import { logToolCall } from "./logger.js";
 
 const FETCH_TIMEOUT_MS = 60_000;
 const LLM_TIMEOUT_MS = 600_000;
+const PLAYWRIGHT_GENERAL_TIMEOUT_MS = 90_000;
 const MAX_CONTENT_CHARS = 12_000;
 const MIN_TEXT_LENGTH_BEFORE_FALLBACK = 50;
 
@@ -55,8 +56,10 @@ function getProxyConfig(): { server: string; bypass?: string } | undefined {
 async function fetchPageWithBrowser(
   url: string,
   timeoutMs = FETCH_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<{ title: string; text: string; error?: string }> {
-  let browser;
+  let browser: import("playwright").Browser | undefined;
+  let onAbort: (() => void) | undefined;
   try {
     const { chromium: playwrightChromium } = await import("playwright");
     const proxyConfig = getProxyConfig();
@@ -67,11 +70,22 @@ async function fetchPageWithBrowser(
       proxy: proxyConfig,
     });
 
+    // Wire abort signal to close browser
+    onAbort = () => { browser?.close().catch(() => {}); };
+    if (onAbort) {
+      signal?.addEventListener("abort", onAbort, { once: true });
+    }
+    if (signal?.aborted) {
+      await browser.close().catch(() => {});
+      return { title: url, text: "", error: "Aborted" };
+    }
+
     const context = await browser.newContext({
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(PLAYWRIGHT_GENERAL_TIMEOUT_MS);
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     await page.waitForTimeout(2000);
@@ -91,6 +105,7 @@ async function fetchPageWithBrowser(
   } catch (e) {
     return { title: url, text: "", error: e instanceof Error ? e.message : String(e) };
   } finally {
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
     if (browser) await browser.close().catch(() => {});
   }
 }
@@ -102,11 +117,12 @@ async function fetchPageWithBrowser(
 export async function fetchPage(
   url: string,
   useBrowser: boolean,
+  signal?: AbortSignal,
 ): Promise<{ title: string; text: string; error?: string }> {
-  if (useBrowser) return fetchPageWithBrowser(url);
+  if (useBrowser) return fetchPageWithBrowser(url, FETCH_TIMEOUT_MS, signal);
 
   try {
-    const html = await httpGet(url, { timeoutMs: FETCH_TIMEOUT_MS });
+    const html = await httpGet(url, { timeoutMs: FETCH_TIMEOUT_MS, signal });
     const title = extractTitle(html) || url;
     let text = htmlToClean(html);
     if (text.length < MIN_TEXT_LENGTH_BEFORE_FALLBACK) {
@@ -143,6 +159,7 @@ export async function llmExtract(
   content: string,
   prompt: string | null,
   schema: unknown | null,
+  signal?: AbortSignal,
 ): Promise<string> {
   let systemMsg = EXTRACTION_SYSTEM_PROMPT;
 
@@ -166,6 +183,7 @@ export async function llmExtract(
 
   const requestOptions: RequestOptions = {
     timeoutMs: LLM_TIMEOUT_MS,
+    signal,
   };
   if (llmConfig.apiKey) {
     requestOptions.headers = { Authorization: `Bearer ${llmConfig.apiKey}` };
@@ -187,8 +205,8 @@ export async function llmExtract(
 
   const data = response as Record<string, unknown>;
   // Cline API wraps response in { data: { choices: [...] } }, others use { choices: [...] }
-  const inner = (data as any)?.data ?? data;
-  const choices = inner?.choices as Array<Record<string, unknown>> | undefined;
+  const inner = ((data as Record<string, unknown>).data as Record<string, unknown>) ?? data;
+  const choices = (inner as Record<string, unknown>).choices as Array<Record<string, unknown>> | undefined;
   const contentBlocks = choices?.[0]?.message as
     | { content?: string }
     | undefined;
@@ -208,6 +226,7 @@ export async function extractContent(
   prompt: string | null = null,
   schema: unknown | null = null,
   useBrowser: boolean = true,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (!prompt && !schema) {
     logToolCall("extract", { urls }, JSON.stringify({ error: "At least one of prompt or schema is required." }));
@@ -216,7 +235,8 @@ export async function extractContent(
 
   const parts: string[] = [];
   for (const url of urls) {
-    const result = await fetchPage(url, useBrowser);
+    if (signal?.aborted) throw new Error("Extraction aborted");
+    const result = await fetchPage(url, useBrowser, signal);
     if (result.error) {
       throw new Error(
         `Failed to fetch "${url}": ${result.error}`,
@@ -230,7 +250,8 @@ export async function extractContent(
   }
 
   const combined = parts.join("\n\n");
-  const result = await llmExtract(combined, prompt, schema);
+  if (signal?.aborted) throw new Error("Extraction aborted");
+  const result = await llmExtract(combined, prompt, schema, signal);
   logToolCall("extract", { urls, prompt, schema, useBrowser }, result);
   return result;
 }
