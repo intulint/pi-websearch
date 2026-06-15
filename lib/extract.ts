@@ -37,6 +37,21 @@ export function extractTitle(html: string): string {
 // Browser-based page fetch (Playwright)
 // ============================================================================
 
+function getProxyConfig(): { server: string; bypass?: string } | undefined {
+  const proxyUrl =
+    process.env.HTTP_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.ALL_PROXY;
+
+  if (!proxyUrl) return undefined;
+
+  const noProxy = process.env.NO_PROXY
+    ? process.env.NO_PROXY.split(",").map((s) => s.trim()).join(",")
+    : undefined;
+
+  return { server: proxyUrl, bypass: noProxy };
+}
+
 async function fetchPageWithBrowser(
   url: string,
   timeoutMs = FETCH_TIMEOUT_MS,
@@ -44,14 +59,20 @@ async function fetchPageWithBrowser(
   let browser;
   try {
     const { chromium: playwrightChromium } = await import("playwright");
+    const proxyConfig = getProxyConfig();
+
     browser = await playwrightChromium.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      proxy: proxyConfig,
     });
-    const page = await browser.newPage({
+
+    const context = await browser.newContext({
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     });
+    const page = await context.newPage();
+
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     await page.waitForTimeout(2000);
 
@@ -159,12 +180,15 @@ export async function llmExtract(
         { role: "user", content: userContent },
       ],
       temperature: 0.1,
+      stream: false,
     },
     requestOptions,
   );
 
   const data = response as Record<string, unknown>;
-  const choices = data.choices as Array<Record<string, unknown>> | undefined;
+  // Cline API wraps response in { data: { choices: [...] } }, others use { choices: [...] }
+  const inner = (data as any)?.data ?? data;
+  const choices = inner?.choices as Array<Record<string, unknown>> | undefined;
   const contentBlocks = choices?.[0]?.message as
     | { content?: string }
     | undefined;
@@ -195,14 +219,15 @@ export async function extractContent(
   for (const url of urls) {
     const result = await fetchPage(url, useBrowser);
     if (result.error) {
-      parts.push(`=== ${url} ===\nFailed to fetch: ${result.error}`);
-    } else {
-      let text = result.text;
-      if (text.length > MAX_CONTENT_CHARS) {
-        text = text.slice(0, MAX_CONTENT_CHARS) + "\n... [truncated]";
-      }
-      parts.push(`=== ${url} ===\n${result.title}\n\n${text}`);
+      throw new Error(
+        `Failed to fetch "${url}": ${result.error}`,
+      );
     }
+    let text = result.text;
+    if (text.length > MAX_CONTENT_CHARS) {
+      text = text.slice(0, MAX_CONTENT_CHARS) + "\n... [truncated]";
+    }
+    parts.push(`=== ${url} ===\n${result.title}\n\n${text}`);
   }
 
   const combined = parts.join("\n\n");

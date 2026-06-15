@@ -24,6 +24,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "node-tls-client": "^2.1.0",
     "playwright": "^1.59.1",
     "typebox": "^1.1.34"
   },
@@ -37,5 +38,8 @@
     "@mariozechner/pi-coding-agent": "*",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "bundleDependencies": [
+    "playwright"
+  ]
 }

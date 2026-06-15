@@ -1,9 +1,46 @@
 /**
- * Unified HTTP client — GET/POST over node:https / node:http.
+ * Unified HTTP client — GET/POST via undici (respects HTTP_PROXY/HTTPS_PROXY).
  * Handles redirects, gzip/br/deflate decompression, timeouts, abort signals.
  */
 
-import { gunzipSync, brotliDecompressSync, inflateSync } from "node:zlib";
+import { fetch, ProxyAgent, Dispatcher } from "undici";
+import type { RequestInit, Response } from "undici";
+
+// ============================================================================
+// Proxy setup — undici reads HTTP_PROXY / HTTPS_PROXY via ProxyAgent
+// ============================================================================
+
+let _dispatcher: Dispatcher | undefined;
+
+function getDispatcher(): Dispatcher {
+  if (_dispatcher) return _dispatcher;
+
+  const proxyUrl =
+    process.env.HTTP_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.ALL_PROXY;
+
+  if (!proxyUrl) {
+    _dispatcher = new Dispatcher(); // default no-op dispatcher
+    return _dispatcher;
+  }
+
+  // Build NO_PROXY set
+  const noProxy = (process.env.NO_PROXY || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  _dispatcher = new ProxyAgent({
+    uri: proxyUrl,
+    proxyTunnel: false,
+    requestTls: {
+      rejectUnauthorized: false,
+    },
+  });
+
+  return _dispatcher;
+}
 
 // ============================================================================
 // Types
@@ -18,129 +55,110 @@ export interface RequestOptions {
 export interface FetchResponse {
   status: number;
   headers: Record<string, string | undefined>;
-  body: string; // raw buffer as string (caller should not use — use decompressedBody)
+  body: string;
   decompressedBody: string;
 }
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const MAX_REDIRECTS = 10;
+const DEFAULT_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 
 // ============================================================================
 // Internal helpers
 // ============================================================================
 
-// Load clients once at module level — Node caches dynamic imports automatically
-const clientModules = (() => {
-  // Use top-level imports to avoid dynamic import overhead on every request
-  return {
-    https: null as typeof import("node:https") | null,
-    http: null as typeof import("node:http") | null,
-  };
-})();
-
-async function getClients(): Promise<{
-  https: typeof import("node:https");
-  http: typeof import("node:http");
-}> {
-  if (!clientModules.https) {
-    const [https, http] = await Promise.all([import("node:https"), import("node:http")]);
-    clientModules.https = https;
-    clientModules.http = http;
-  }
-  return { https: clientModules.https!, http: clientModules.http! };
-}
-
-function decompress(body: Buffer, contentEncoding?: string | undefined): Buffer {
-  if (!contentEncoding) return body;
+function decompressBody(body: Uint8Array, contentEncoding?: string): string {
+  const text = new TextDecoder().decode(body);
+  if (!contentEncoding) return text;
   try {
     switch (contentEncoding) {
-      case "gzip":
-        return gunzipSync(body);
-      case "br":
-        return brotliDecompressSync(body);
-      case "deflate":
-        return inflateSync(body);
+      case "gzip": {
+        const zlib = require("node:zlib");
+        return zlib.gunzipSync(Buffer.from(body)).toString("utf-8");
+      }
+      case "br": {
+        const zlib = require("node:zlib");
+        return zlib.brotliDecompressSync(Buffer.from(body)).toString("utf-8");
+      }
+      case "deflate": {
+        const zlib = require("node:zlib");
+        return zlib.inflateSync(Buffer.from(body)).toString("utf-8");
+      }
       default:
-        return body;
+        return text;
     }
   } catch {
-    return body; // fallback: return raw
+    return text;
   }
 }
-
-const MAX_REDIRECTS = 10;
 
 async function executeRequest(
   method: "GET" | "POST",
   url: string,
-  { headers, body, timeoutMs = 30000, signal }: RequestOptions & { body?: string },
+  options: RequestOptions & { body?: string },
   redirectsLeft = MAX_REDIRECTS,
 ): Promise<{
   status: number;
   headers: Record<string, string | undefined>;
-  rawBody: Buffer;
+  rawBody: Uint8Array;
   contentEncoding: string | undefined;
 }> {
-  const { https, http } = await getClients();
-  const reqFn = url.startsWith("https:") ? https.request : http.request;
-
   if (redirectsLeft <= 0) {
     throw new Error("Too many redirects");
   }
 
-  return new Promise<{
-    status: number;
-    headers: Record<string, string | undefined>;
-    rawBody: Buffer;
-    contentEncoding: string | undefined;
-  }>((resolve, reject) => {
-    const req = reqFn(
-      url,
-      {
-        method,
-        timeout: timeoutMs,
-        headers,
-      },
-      (res) => {
-        const contentEncoding = res.headers["content-encoding"];
-        const location = res.headers.location;
+  const allHeaders: Record<string, string> = {
+    "User-Agent": DEFAULT_USER_AGENT,
+    "Accept": "text/html,application/json,*/*",
+    "Accept-Encoding": "gzip, br, deflate",
+    ...options.headers,
+  };
 
-        // Redirect (3xx with location)
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && location) {
-          res.resume(); // consume body to free memory
-          // POST redirects become GET (standard HTTP behavior)
-          const redirectMethod = method === "POST" ? "GET" : method;
-          executeRequest(redirectMethod, location, { headers, timeoutMs, signal }, redirectsLeft - 1)
-            .then(resolve)
-            .catch(reject);
-          return;
-        }
+  let fetchTimeout: AbortSignal | undefined;
+  if (options.timeoutMs) {
+    fetchTimeout = AbortSignal.timeout(options.timeoutMs);
+  }
 
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.on("end", () => {
-          const headersMap: Record<string, string | undefined> = {};
-          for (const [k, v] of Object.entries(res.headers)) {
-            headersMap[k] = typeof v === "string" ? v : v?.[0];
-          }
-          resolve({ status: res.statusCode ?? 0, headers: headersMap, rawBody: Buffer.concat(chunks), contentEncoding });
-        });
-      },
-    );
+  const init: RequestInit = {
+    method,
+    headers: allHeaders,
+    redirect: "manual",
+    signal: options.signal ?? fetchTimeout,
+  };
 
-    req.on("error", reject);
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error("Request timeout"));
-    });
+  if (method === "POST" && options.body) {
+    init.body = options.body;
+  }
 
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        req.destroy();
-        reject(new Error("Request aborted"));
-      });
+  const response = await fetch(url, {
+    ...init,
+    dispatcher: getDispatcher(),
+  }) as Response;
+
+  // Handle redirect (3xx with location header)
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error(`Redirect ${response.status} without location header`);
     }
+    const redirectMethod = method === "POST" ? "GET" : method;
+    return executeRequest(redirectMethod, location, options, redirectsLeft - 1);
+  }
 
-    if (body) req.write(body);
-    req.end();
+  const arrayBuffer = await response.arrayBuffer();
+  const rawBody = new Uint8Array(arrayBuffer);
+  const contentEncoding = response.headers.get("content-encoding") ?? undefined;
+
+  const headers: Record<string, string | undefined> = {};
+  response.headers.forEach((value, key) => {
+    headers[key] = value;
   });
+
+  return { status: response.status, headers, rawBody, contentEncoding };
 }
 
 // ============================================================================
@@ -157,11 +175,11 @@ export async function httpGet(
   const { status, rawBody, contentEncoding } = await executeRequest("GET", url, options);
 
   if (status < 200 || status >= 300) {
-    const text = decompress(rawBody, contentEncoding).toString("utf-8").slice(0, 500);
+    const text = decompressBody(rawBody, contentEncoding).slice(0, 500);
     throw new Error(`HTTP ${status}: ${text}`);
   }
 
-  return decompress(rawBody, contentEncoding).toString("utf-8");
+  return decompressBody(rawBody, contentEncoding);
 }
 
 /**
@@ -174,16 +192,16 @@ export async function httpGetRaw(
   const { status, headers, rawBody, contentEncoding } = await executeRequest("GET", url, options);
 
   if (status < 200 || status >= 300) {
-    const text = decompress(rawBody, contentEncoding).toString("utf-8").slice(0, 500);
+    const text = decompressBody(rawBody, contentEncoding).slice(0, 500);
     throw new Error(`HTTP ${status}: ${text}`);
   }
 
-  const decompressed = decompress(rawBody, contentEncoding).toString("utf-8");
+  const decompressed = decompressBody(rawBody, contentEncoding);
   return {
     status,
     headers,
-    body: rawBody.toString("utf-8"), // raw (possibly compressed) body as string
-    decompressedBody: decompressed,  // always decompressed
+    body: new TextDecoder().decode(rawBody),
+    decompressedBody: decompressed,
   };
 }
 
@@ -211,12 +229,12 @@ export async function httpPostJson(
   });
 
   if (status < 200 || status >= 300) {
-    const text = rawBody.toString("utf-8").slice(0, 500);
+    const text = new TextDecoder().decode(rawBody).slice(0, 500);
     throw new Error(`HTTP ${status}: ${text}`);
   }
 
   try {
-    return JSON.parse(rawBody.toString("utf-8"));
+    return JSON.parse(new TextDecoder().decode(rawBody));
   } catch (e) {
     throw new Error(`Invalid JSON response: ${(e as Error).message}`);
   }

@@ -83,9 +83,11 @@ export function resolveModel(): { url: string; model: string; apiKey?: string } 
 
 export function buildChatUrl(baseUrl: string): string {
   const url = baseUrl.trim();
-  if (url.includes("/v1/chat/completions") || url.endsWith("/v1")) {
-    return url.endsWith("/chat/completions") ? url : `${url}/v1/chat/completions`;
-  }
+  // Already has the full path
+  if (url.endsWith("/v1/chat/completions")) return url;
+  // Has base like "/v1" — append /chat/completions
+  if (url.endsWith("/v1")) return `${url}/chat/completions`;
+  // Default: assume "/v1" base
   return `${url}/v1/chat/completions`;
 }
 
