@@ -3,11 +3,11 @@
  * Debounced writes to reduce I/O frequency.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import { EXTENSION_DIR } from "./config.js";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
+import { join, dirname } from "path";
 
-const TOOL_CALL_LOG_PATH = join(EXTENSION_DIR, "tool_calls.log.json");
+const TOOL_CALL_LOG_PATH = join(homedir(), ".pi", "logs", "pi-websearch", "tool_calls.log.json");
 const MAX_ENTRIES = 10;
 const FLUSH_INTERVAL_MS = 3_000;
 const MAX_BUFFER_SIZE = 5;
@@ -54,6 +54,7 @@ function flushBuffer(): void {
   const allLogs = [...loadInitialLogs(), ...buffer];
   const trimmed = allLogs.slice(-MAX_ENTRIES);
   try {
+    mkdirSync(dirname(TOOL_CALL_LOG_PATH), { recursive: true });
     writeFileSync(TOOL_CALL_LOG_PATH, JSON.stringify(trimmed, null, 2));
   } catch {
     /* ignore */
