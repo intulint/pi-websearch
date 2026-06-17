@@ -8,7 +8,7 @@
 
 ---
 
-**pi-websearch** — a lightweight Pi extension for web search and structured content extraction. No build step, uses `playwright` and `typebox`, and requires `@mariozechner/pi-coding-agent` as a peer dependency. Drop it in and it works.
+**pi-websearch** — a lightweight Pi extension for web search and structured content extraction. No build step, uses `playwright` and `typebox`, and requires `@mariozechner/pi-coding-agent` + `@mariozechner/pi-tui` as peer dependencies. Drop it in and it works.
 
 ## Installation
 
@@ -33,7 +33,7 @@ npm install
 npx playwright install chromium
 ```
 
-Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`, `@mariozechner/pi-coding-agent` peer dependency).
+Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`, `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui` peer dependencies).
 
 ## Tools
 
@@ -101,7 +101,7 @@ get_current_date()
 
 ## Configuration
 
-Optionally create a `.env` file in the extension directory:
+Optionally create a `.env` file in the extension directory to override the LLM model:
 
 ```env
 # Explicit LLM model (overrides auto-detection from Pi)
@@ -110,18 +110,36 @@ LLM_MODEL=qwen3.5-27b
 LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 ```
 
+**Important:** Never commit `.env` files to version control. Use `.env.example` as a template.
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `LLM_URL` | No | - | Explicit LLM endpoint (overrides auto-detection) |
 | `LLM_MODEL` | No | - | Explicit model name (overrides auto-detection) |
 | `LLM_API_KEY` | No | - | API key for authenticated endpoints |
 
+## Proxy Configuration
+
+The extension respects `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables:
+
+- **`search_web` (DuckDuckGo):** Direct connection to `duckduckgo.com` (proxy bypass)
+  - DuckDuckGo blocks requests through the configured proxy IP (202 Challenge)
+  - Uses direct `Agent` connection, not `ProxyAgent`
+
+- **`extract` (Playwright):** Uses proxy with `NO_PROXY` bypass
+  - Proxy configured via `proxy` option in Playwright
+  - Respects `NO_PROXY` environment variable
+
+- **`extract` (HTTP fallback):** Uses proxy for simple pages
+  - HTTP GET requests respect `HTTP_PROXY`/`HTTPS_PROXY`
+  - Uses `undici` with `ProxyAgent`
+
 ## Model Selection
 
 The extension selects the LLM model using the following priority:
 
-1. **Explicit model from `.env`** — if `.env` exists with `LLM_URL` and `LLM_MODEL`, these are used
-2. **Auto-detected model from Pi** — if no `.env`, the extension detects the currently active model in Pi via `session_start` and `model_select` events, using its `baseUrl` and `apiKey`
+1. **Explicit model from `.env`** — if `.env` exists with `LLM_URL` and `LLM_MODEL`, these are used for the `extract` tool's LLM calls.
+2. **Auto-detected model from Pi** — if no `.env`, the extension uses the currently active model in Pi..
 
 The LLM endpoint is constructed as `{baseUrl}/v1/chat/completions`. If an API key is available (from `.env` or Pi's model registry), it's sent as a Bearer token in the `Authorization` header.
 
@@ -140,10 +158,88 @@ The `extract` tool uses the configured model for the LLM call, then **restores t
 
 ## Dependencies
 
+Runtime (in `package.json`):
 - `typebox` — Schema definitions for tool parameters
 - `playwright` — Browser-based content extraction (JS-heavy sites)
 
+Peer:
+- `@mariozechner/pi-coding-agent` — Pi extension API
+- `@mariozechner/pi-tui` — Pi TUI components (Text, etc.)
+
+Transitive (via undici in node_modules):
+- `undici` — HTTP client with proxy support
+- `node:zlib` — Decompression (gzip, br, deflate)
+
 > **Note:** `playwright` requires Chromium browser binaries. Run `npx playwright install chromium` after `npm install`.
+
+## Important Gotchas
+
+- **No `dist/` directory.** Everything is raw TypeScript loaded by jiti.
+- **`node_modules` must exist.** Pi does not auto-run `npm install` for local extensions.
+- **Type stubs:** Minimal types are provided via `@mariozechner/pi-coding-agent` peer dependency for `tsc --noEmit` without the full monorepo.
+- **Tool call logging:** All tool calls are logged to `~/.pi/logs/pi-websearch/tool_calls.log.json` (in user home directory).
+- **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
+- **Static stdlib imports:** Node.js stdlib modules (e.g., `fs`, `path`, `zlib`) are imported statically via `import { ... } from "node:..."`.
+- **Dynamic imports:** Playwright is loaded dynamically at runtime, not statically imported.
+- **Jiti mapping:** Jiti handles the `.js` extension mapping for imports.
+- **Lazy .env reload:** `.env` is read lazily at session start. Changes to `.env` survive `/reload` without restarting Pi.
+- **API response formats:** Some LLM APIs wrap responses differently. Code handles common formats automatically.
+
+## Implementation Details
+
+### Timeouts
+
+- **DuckDuckGo search:** 15 seconds (retry 2 times with jitter)
+- **Page fetch (HTTP):** 60 seconds
+- **Page fetch (Playwright):** 60 seconds
+- **LLM extraction:** 10 minutes
+- **Playwright general timeout:** 90 seconds
+
+### Retry Logic
+
+- DuckDuckGo search: 2 retries with exponential backoff + jitter
+- Base delay: 2 seconds, jitter: 50% of base
+
+### Content Processing
+
+- Maximum content characters per URL: 12,000
+- Minimum text length before fallback: 50 characters
+- HTML cleaning: removes `<script>`, `<style>`, tags, normalizes whitespace
+
+### API Response Handling
+
+- Common LLM API response formats are handled automatically
+- Code detects and normalizes different response structures
+
+### User-Agent Rotation
+
+- 5 different User-Agents (Chrome, Edge, Firefox, Safari, Linux)
+- Randomly selected to avoid bot detection patterns
+
+## Rate Limits & Best Practices
+
+### DuckDuckGo Rate Limits
+
+- **Warning:** Do NOT call `search_web` multiple times in a row
+- DuckDuckGo blocks rapid requests (202 Challenge)
+- **Recommendation:** Wait at least a few seconds between `search_web` calls
+- Use the `limit` parameter to get fewer results (default: 10)
+
+### Batch Restrictions
+
+- **`extract`:** Only ONE `extract` call per batch
+- If multiple `extract` calls are sent in a single request, only the first executes
+- The batch flag resets on each new user message (`turn_start`)
+- On error: the batch flag is reset so next turn can retry
+
+### Best Practices
+
+- Always use `search_web` first to find URLs, then `extract` to get content
+- Provide clear prompts for extraction
+- Use `schema` for structured JSON output
+- Set `useBrowser: false` for simple pages (HTML docs, blogs)
+- Keep `useBrowser: true` for JS-heavy sites (SPAs, dashboards)
+- Handle errors gracefully — pages may be blocked, require login, or not contain requested data
 
 ## License
 

@@ -13,3 +13,8 @@ dist/
 
 # Backups
 *.backup
+
+# Internal documentation (not for public repo)
+ARCHITECTURE.md
+README-dev.md
+AGENTS.md
