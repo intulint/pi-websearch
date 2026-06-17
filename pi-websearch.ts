@@ -16,6 +16,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { join, dirname } from "path";
+import { Text } from "@mariozechner/pi-tui";
 
 // ── Modules ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ import {
   cachedEnvModel,
   cachedEnvApiKey,
 } from "./lib/config.js";
-import { searchDdg } from "./lib/search.js";
+import { searchDdg, type SearchResult } from "./lib/search.js";
 import { extractContent } from "./lib/extract.js";
 import { logToolCall, flushLogs } from "./lib/logger.js";
 
@@ -176,11 +177,55 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       const data = await searchDdg(params.query, limit, signal);
       const result = JSON.stringify(data, null, 2);
       logToolCall("search_web", { query: params.query, limit, provider: "ddg" }, result);
-      return { content: [{ type: "text", text: result }], details: {} };
+      return { content: [{ type: "text", text: result }], details: { results: data } };
+    },
+    renderCall(args, theme, _context) {
+      const query = args.query.length > 80 ? `${args.query.slice(0, 77)}...` : args.query;
+      let text = theme.fg("toolTitle", theme.bold("search_web "));
+      text += theme.fg("accent", query);
+      if (args.limit !== undefined) {
+        text += theme.fg("dim", ` (limit: ${args.limit})`);
+      }
+      return new Text(text, 0, 0);
+    },
+    renderResult(result, { expanded }, theme, _context) {
+      const details = result.details as { results?: SearchResult[] } | undefined;
+      const results = details?.results;
+
+      if (!results || results.length === 0) {
+        const content = result.content[0];
+        if (content?.type === "text") {
+          return new Text(theme.fg("error", content.text), 0, 0);
+        }
+        return new Text(theme.fg("error", "No results"), 0, 0);
+      }
+
+      let text = theme.fg("success", `${results.length} result${results.length > 1 ? "s" : ""}`);
+
+      if (expanded) {
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          text += `\n${theme.fg("accent", `[${i + 1}] ${r.title}`)}\n`;
+          text += `    ${theme.fg("dim", r.url)}\n`;
+          text += `    ${theme.fg("toolOutput", r.description)}\n`;
+        }
+      }
+
+      return new Text(text, 0, 0);
     },
   });
 
   // --- Tool: extract ---
+
+  function shortenUrl(url: string): string {
+    try {
+      const u = new URL(url);
+      const path = u.pathname.length > 50 ? u.pathname.slice(0, 47) + "..." : u.pathname;
+      return `${u.hostname}${path}`;
+    } catch {
+      return url.length > 60 ? url.slice(0, 57) + "..." : url;
+    }
+  }
 
   pi.registerTool({
     name: "extract",
@@ -252,7 +297,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
             params.useBrowser !== false,
             signal,
           );
-          return { content: [{ type: "text", text: result }], details: {} };
+          return { content: [{ type: "text", text: result }], details: { urls: params.urls, prompt: params.prompt, schema: params.schema } };
         } finally {
           // Restore original Pi model after tool execution
           if (_piRef && originalProvider && originalId && origModel) {
@@ -263,6 +308,56 @@ export default function piWebsearch(pi: ExtensionAPI): void {
         _extractAllowed = true; // Reset on error so next turn can retry
         throw e;
       }
+    },
+    renderCall(args, theme, _context) {
+      let text = theme.fg("toolTitle", theme.bold("extract "));
+      const urlList = args.urls.map((u: string) => shortenUrl(u));
+      text += theme.fg("accent", urlList.join(", "));
+      if (args.prompt) {
+        const p = args.prompt.length > 60 ? `${args.prompt.slice(0, 57)}...` : args.prompt;
+        text += `\n${theme.fg("dim", `prompt: ${p}`)}`;
+      }
+      if (args.schema) {
+        text += `\n${theme.fg("dim", "[schema extraction]")}`;
+      }
+      return new Text(text, 0, 0);
+    },
+    renderResult(result, { expanded }, theme, _context) {
+      const details = result.details as { urls?: string[]; prompt?: string } | undefined;
+
+      if (result.content.some((c) => c.type === "text" && c.text.startsWith("Extract tool is already running"))) {
+        return new Text(theme.fg("warning", "Extract already running in this batch"), 0, 0);
+      }
+
+      const content = result.content[0];
+      const textContent = content?.type === "text" ? content.text : "";
+
+      if (!textContent) {
+        return new Text(theme.fg("error", "No content"), 0, 0);
+      }
+
+      let text = theme.fg("success", `Extracted`);
+      if (details?.urls) {
+        text += ` from ${details.urls.length} url${details.urls.length > 1 ? "s" : ""}`;
+      }
+
+      if (expanded) {
+        // Show prompt if available
+        if (details?.prompt) {
+          const p = details.prompt.length > 80 ? `${details.prompt.slice(0, 77)}...` : details.prompt;
+          text += `\n${theme.fg("dim", `prompt: ${p}`)}`;
+        }
+        // Show URLs
+        if (details?.urls) {
+          for (const url of details.urls) {
+            text += `\n${theme.fg("dim", shortenUrl(url))}`;
+          }
+        }
+        // Show extracted content
+        text += `\n${theme.fg("toolOutput", textContent)}`;
+      }
+
+      return new Text(text, 0, 0);
     },
   });
 }
