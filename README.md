@@ -41,8 +41,6 @@ Pi loads `.ts` files via jiti without a build step, but `node_modules` must be p
 
 Search the web for a query using DuckDuckGo HTML scraping. Returns a JSON string array of `{ title, url, description }`.
 
-> **WARNING:** Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.
-
 ```typescript
 search_web({
   query: "latest AI news",
@@ -62,8 +60,6 @@ Returns JSON string:
 ### `extract`
 
 Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use `search_web` first to find URLs.
-
-> **WARNING:** Only one `extract` call is allowed per batch. If multiple extract calls are sent in the same request, only the first one will execute — the rest will return an error immediately.
 
 ```typescript
 extract({
@@ -86,9 +82,6 @@ extract({
   },
   useBrowser: true  // optional, default true
 })
-```
-
-Note: The `schema` parameter can be `null` or `Type.Unknown()` for flexible extraction.
 
 ### `get_current_date`
 
@@ -138,22 +131,7 @@ The extension respects `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment v
 The extension selects the LLM model using the following priority:
 
 1. **Explicit model from `.env`** — if `.env` exists with `LLM_URL` and `LLM_MODEL`, these are used for the `extract` tool's LLM calls.
-2. **Auto-detected model from Pi** — if no `.env`, the extension uses the currently active model in Pi..
-
-The LLM endpoint is constructed as `{baseUrl}/v1/chat/completions`. If an API key is available (from `.env` or Pi's model registry), it's sent as a Bearer token in the `Authorization` header.
-
-### Extract tool model behavior
-
-The `extract` tool uses the configured model for the LLM call, then **restores the original Pi model** after completion:
-
-- With `.env`: switches to `.env` model → LLM call → restores original Pi model
-- Without `.env`: no switch, uses auto-detected Pi model directly
-- Restoration always happens in a `finally` block — even on error, the Pi model is restored
-
-## Batch Restrictions
-
-- **`extract`**: Only one `extract` call is allowed per batch. If the agent sends multiple `extract` calls in a single request, only the first one executes — others return an error immediately instead of hanging until timeout.
-- The batch flag resets on each new user message (`turn_start` event).
+2. **Auto-detected model from Pi** — if no `.env`, the extension uses the currently active model in Pi.
 
 ## Dependencies
 
@@ -170,51 +148,6 @@ Transitive (via undici in node_modules):
 - `node:zlib` — Decompression (gzip, br, deflate)
 
 > **Note:** `playwright` requires Chromium browser binaries. Run `npx playwright install chromium` after `npm install`.
-
-## Important Gotchas
-
-- **No `dist/` directory.** Everything is raw TypeScript loaded by jiti.
-- **`node_modules` must exist.** Pi does not auto-run `npm install` for local extensions.
-- **Type stubs:** Minimal types are provided via `@mariozechner/pi-coding-agent` peer dependency for `tsc --noEmit` without the full monorepo.
-- **Tool call logging:** All tool calls are logged to `~/.pi/logs/pi-websearch/tool_calls.log.json` (in user home directory).
-- **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
-- **Static stdlib imports:** Node.js stdlib modules (e.g., `fs`, `path`, `zlib`) are imported statically via `import { ... } from "node:..."`.
-- **Dynamic imports:** Playwright is loaded dynamically at runtime, not statically imported.
-- **Jiti mapping:** Jiti handles the `.js` extension mapping for imports.
-- **Lazy .env reload:** `.env` is read lazily at session start. Changes to `.env` survive `/reload` without restarting Pi.
-- **API response formats:** Some LLM APIs wrap responses differently. Code handles common formats automatically.
-
-## Implementation Details
-
-### Timeouts
-
-- **DuckDuckGo search:** 15 seconds (retry 2 times with jitter)
-- **Page fetch (HTTP):** 60 seconds
-- **Page fetch (Playwright):** 60 seconds
-- **LLM extraction:** 10 minutes
-- **Playwright general timeout:** 90 seconds
-
-### Retry Logic
-
-- DuckDuckGo search: 2 retries with exponential backoff + jitter
-- Base delay: 2 seconds, jitter: 50% of base
-
-### Content Processing
-
-- Maximum content characters per URL: 12,000
-- Minimum text length before fallback: 50 characters
-- HTML cleaning: removes `<script>`, `<style>`, tags, normalizes whitespace
-
-### API Response Handling
-
-- Common LLM API response formats are handled automatically
-- Code detects and normalizes different response structures
-
-### User-Agent Rotation
-
-- 5 different User-Agents (Chrome, Edge, Firefox, Safari, Linux)
-- Randomly selected to avoid bot detection patterns
-
 
 ## License
 
