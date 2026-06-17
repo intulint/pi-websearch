@@ -110,7 +110,6 @@ LLM_MODEL=qwen3.5-27b
 LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 ```
 
-**Important:** Never commit `.env` files to version control. Use `.env.example` as a template.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
