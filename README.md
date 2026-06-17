@@ -59,7 +59,7 @@ Returns JSON string:
 
 ### `extract`
 
-Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use `search_web` first to find URLs.
+Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to an LLM for structured extraction. Uses either the model specified in `.env` or the currently selected Pi model. Use `search_web` first to find URLs.
 
 ```typescript
 extract({
