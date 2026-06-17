@@ -82,6 +82,7 @@ extract({
   },
   useBrowser: true  // optional, default true
 })
+```
 
 ### `get_current_date`
 
