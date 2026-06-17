@@ -13,10 +13,12 @@ This file documents the Pi events that the extension subscribes to and how they 
 **Handler:**
 ```typescript
 pi.on("session_start", async (_event, ctx) => {
-  // Extract modelId and provider from ctx.model
-  // Look up baseUrl from ctx.model or ctx.modelRegistry
-  // Set currentModelId and currentProviderBaseUrl
-  // Log config status
+  resolveModelFromPi(ctx.model, ctx.modelRegistry);
+
+  // Register env provider only if .env is configured (cachedEnvUrl && cachedEnvModel)
+  if (cachedEnvUrl && cachedEnvModel) {
+    // register env-overridden provider
+  }
 });
 ```
 
@@ -70,11 +72,11 @@ pi.on("session_shutdown", () => {
 **Handler:**
 ```typescript
 pi.on("turn_start", () => {
-  extractAllowed = true;
+  _extractAllowed = true;
 });
 ```
 
-**Why:** Each new user message is a new batch. The `extract` tool allows only one call per batch to prevent multiple parallel LLM requests that cause hangs and timeouts. The flag resets at the start of each turn so the next message can use `extract` again.
+**Why:** Each new user message is a new batch. The `extract` tool allows only one call per batch to prevent multiple parallel LLM requests that cause hangs and timeouts. The flag (`_extractAllowed`) resets at the start of each turn via a module-level state variable.
 
 **Priority:** Medium — critical for preventing extract tool hangs.
 

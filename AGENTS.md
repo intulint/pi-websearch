@@ -6,7 +6,7 @@ A pi extension package providing three tools: `search_web`, `extract`, and `get_
 The extension auto-detects the active LLM model from Pi's model registry.
 Optionally override LLM settings via `.env` file — when `.env` exists, the `extract` tool **uses the .env model for the LLM call, then restores the original Pi model** after completion.
 
-## Entry point and structure
+## Architecture
 
 - **Entry:** `pi-websearch.ts` (single entry, imports from `lib/`)
 - **No build step.** Pi loads `.ts` via jiti. Never add a build step.
@@ -48,7 +48,7 @@ If no `.env` exists, the extension auto-detects the active Pi model.
 
 When `LLM_URL` and `LLM_MODEL` are set in `.env`, the extension:
 
-1. At `session_start` — registers/overwrites provider `env-overridden` with `pi.registerProvider()` (`openai-completions` API)
+1. At `session_start` — registers/overwrites provider `env-overridden` with `pi.registerProvider()` (`openai-completions` API) **only if `.env` is configured** (`cachedEnvUrl && cachedEnvModel`)
 2. At `session_shutdown` — resets `_envProviderRegistered` flag so the provider is re-registered on next `session_start` (handles `.env` changes)
 3. When `extract` tool is called:
    - Captures the current Pi model from `_ctx.model` (provider, id, registry entry)
@@ -77,6 +77,8 @@ resolveModel()
         └─ fallback: ctx.modelRegistry.find(provider, modelId)
 ```
 
+Note: `resolveModel()` is called from `llmExtract()` in `lib/extract.ts`, which is invoked from `extractContent()`.
+
 ## Tools
 
 ### `search_web`
@@ -102,14 +104,16 @@ Returns human-readable date string.
 - **Type stubs:** Minimal types are provided via `@mariozechner/pi-coding-agent` peer dependency for `tsc --noEmit` without the full monorepo.
 - **Tool call logging:** All tool calls are logged to `tool_calls.log.json` in the project root.
 - **Playwright browser:** Requires `chromium` binary installed via `npx playwright install chromium`.
-- **Batch restriction:** Multiple `extract` calls in the same batch are blocked — only the first one executes.
-- **ESM imports:** All `.ts` imports use `.js` extensions (Node.js ESM convention). Jiti handles the mapping.
-- **Lazy .env reload:** `.env` is read lazily on `session_start`. Changes to `.env` survive `/reload` without restarting Pi.
+- **Static stdlib imports:** Node.js stdlib modules (e.g., `fs`, `path`, `zlib`) are imported statically via `import { ... } from "node:..."`.
+- **Dynamic imports:** Playwright is imported dynamically via `await import("playwright")` in `lib/extract.ts`.
+- **Jiti mapping:** Jiti handles the `.js` extension mapping for imports.
+- **Lazy .env reload:** `.env` is read lazily on `session_start` via `ensureEnvLoaded()`. Changes to `.env` survive `/reload` without restarting Pi.
 
 ## Style
 
 - No `any` types unless absolutely necessary (TypeBox schemas cast to `any` for pi compatibility).
-- Dynamic imports (`await import()`) are used for Node.js stdlib modules.
+- Static stdlib imports for Node.js modules.
+- Dynamic imports for Playwright.
 - Follow patterns in `lib/` for module organization.
 - Each module has a clear responsibility — don't add cross-dependencies.
 

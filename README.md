@@ -8,7 +8,7 @@
 
 ---
 
-**pi-websearch** — a lightweight, single-file Pi extension for web search and structured content extraction. No build step, no dependencies beyond `playwright` and `typebox`. Just drop it in and it works.
+**pi-websearch** — a lightweight Pi extension for web search and structured content extraction. No build step, uses `playwright` and `typebox`, and requires `@mariozechner/pi-coding-agent` as a peer dependency. Drop it in and it works.
 
 ## Installation
 
@@ -33,13 +33,13 @@ npm install
 npx playwright install chromium
 ```
 
-Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`).
+Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`, `@mariozechner/pi-coding-agent` peer dependency).
 
 ## Tools
 
 ### `search_web`
 
-Search the web for a query using DuckDuckGo HTML scraping. Returns titles, URLs, and snippet descriptions.
+Search the web for a query using DuckDuckGo HTML scraping. Returns a JSON string array of `{ title, url, description }`.
 
 > **WARNING:** Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.
 
@@ -50,22 +50,20 @@ search_web({
 })
 ```
 
-Returns JSON array of search results:
+Returns JSON string:
 ```json
-[
-  {
-    "title": "AI News Headline",
-    "url": "https://example.com/ai-news",
-    "description": "Description of the news article..."
-  }
-]
+[{
+  "title": "AI News Headline",
+  "url": "https://example.com/ai-news",
+  "description": "Description of the news article..."
+}]
 ```
 
 ### `extract`
 
 Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use `search_web` first to find URLs.
 
-> **WARNING:** Only one `extract` call is allowed per batch. If multiple extract calls are sent in the same request, only the first one will execute — the rest will return an error.
+> **WARNING:** Only one `extract` call is allowed per batch. If multiple extract calls are sent in the same request, only the first one will execute — the rest will return an error immediately.
 
 ```typescript
 extract({
@@ -90,9 +88,11 @@ extract({
 })
 ```
 
+Note: The `schema` parameter can be `null` or `Type.Unknown()` for flexible extraction.
+
 ### `get_current_date`
 
-Get the current date.
+Get the current date in ISO format with day of week.
 
 ```typescript
 get_current_date()
@@ -109,6 +109,12 @@ LLM_URL=http://localhost:1234
 LLM_MODEL=qwen3.5-27b
 LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 ```
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LLM_URL` | No | - | Explicit LLM endpoint (overrides auto-detection) |
+| `LLM_MODEL` | No | - | Explicit model name (overrides auto-detection) |
+| `LLM_API_KEY` | No | - | API key for authenticated endpoints |
 
 ## Model Selection
 

@@ -38,7 +38,7 @@ pi-websearch/
    │
    ├─ 2. Загружает pi-websearch.ts
    │
-   ├─ 3. Выполняет pi-websearch()
+   ├─ 3. Выполняет pi-websearch() - factory function
    │    │
    │    ├─ 3.1. initConfig(EXTENSION_DIR) - инициализация пути
    │    │
@@ -51,7 +51,7 @@ pi-websearch/
    ├─ 4. Pi вызывает инструменты по запросу пользователя
    │
    └─ 5. При /reload - расширение перезагружается
-        → config.ts перезагружает .env (lazy reload через lastEnvRead)
+        → config.ts перезагружает .env (lazy reload через ensureEnvLoaded())
 ```
 
 ## Потоки данных по инструментам
@@ -104,7 +104,7 @@ pi.registerTool({ name: "search_web" }) → execute(params)
 
 **Зависимости:** DuckDuckGo HTML API
 
-**Таймауты:** 30 секунд на запрос
+**Таймауты:** 15 секунд на запрос (DDG_TIMEOUT_MS = 15_000)
 
 **Rate limits:** DuckDuckGo блокирует при частых запросах. WARNING в description инструмента.
 
@@ -174,6 +174,7 @@ pi.registerTool({ name: "extract" }) → execute(params)
     │   │   │     model: LLM_MODEL,
     │   │   │     messages: [{ role: "system", ... }, { role: "user", ... }],
     │   │   │     temperature: 0.1,
+    │   │   │     stream: false,
     │   │   │     Headers: { Authorization: Bearer {apiKey} }
     │   │   │   }
     │   │   │
@@ -191,9 +192,9 @@ pi.registerTool({ name: "extract" }) → execute(params)
 
 **Зависимости:** Local LLM (OpenAI-compatible API), Playwright (optional)
 
-**Таймауты:** 60 секунд на fetch, 10 минут на LLM
+**Таймауты:** 60 секунд на fetch (FETCH_TIMEOUT_MS), 10 минут на LLM (LLM_TIMEOUT_MS)
 
-**Batch restriction:** Only one extract per batch. Resets on `turn_start`.
+**Batch restriction:** Only one extract per batch. Resets on `turn_start` event via module-level state variable `_extractAllowed`.
 
 ---
 
@@ -202,7 +203,7 @@ pi.registerTool({ name: "extract" }) → execute(params)
 ```
 turn_start (new user message)
     │
-    └─ _extractAllowed = true  (reset)
+    └─ _extractAllowed = true  (reset via module-level state in pi-websearch.ts)
 
 extract call #1
     │
@@ -237,7 +238,13 @@ lib/config.ts
     └── fs, path
 
 lib/http.ts
-    └── node:https, node:http, node:zlib
+    └── node:zlib, undici
+
+lib/search.ts
+    └── lib/http.ts           (httpGetRaw)
+
+lib/extract.ts
+    └── playwright (dynamic import)
 ```
 
 ## Конфигурация
