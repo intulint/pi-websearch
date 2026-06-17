@@ -160,11 +160,14 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Web Search",
     description:
       "Search the web for a query. Returns titles, URLs, and snippet descriptions. Uses DuckDuckGo HTML scraping. WARNING: Do NOT call this tool multiple times in a row — rate limits apply. Wait between calls.",
-    promptSnippet: "Search the web via DuckDuckGo (titles, URLs, descriptions)",
+    promptSnippet: "Search the web to find relevant URLs and preview snippets — use before extract to discover pages",
     promptGuidelines: [
-      "Use search_web to find current information, documentation, or web pages before using extract.",
-      "Do NOT call search_web multiple times in a row — DuckDuckGo rate limits apply. Wait at least a few seconds between calls.",
-      "Start with a specific query; if results are poor, refine and retry with different terms.",
+      "Use search_web when you need to find information on the web — news, documentation, forum posts, product pages, etc.",
+      "Search_web returns titles, URLs, and short descriptions — use it to discover pages, then use extract to read the full content.",
+      "Use specific, targeted queries — include key terms, product names, or topics to get relevant results.",
+      "If results are poor, refine your query with different keywords or more specific terms before trying again.",
+      "Wait at least a few seconds between search_web calls — DuckDuckGo rate limits frequent requests.",
+      "Use the limit parameter (default 10) to get fewer or more results — set lower when you only need top matches.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
@@ -232,13 +235,15 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     label: "Extract Content",
     description:
       "Extract structured data from one or more URLs. Fetches pages (with optional Playwright browser mode), extracts readable content, then sends to local LLM for structured extraction. Use search_web first to find URLs.",
-    promptSnippet: "Fetch URLs and extract structured data via local LLM",
+    promptSnippet: "Fetch a URL and ask the LLM to extract specific structured data from the page content",
     promptGuidelines: [
-      "Use extract to fetch and parse web page content. Always use search_web first to find relevant URLs.",
-      "Use extract with a clear prompt describing exactly what data to extract. At least one of prompt or schema is required.",
-      "Only ONE extract call is allowed per batch — combine multiple URLs into a single extract call instead.",
-      "Set useBrowser: true (default) for JavaScript-heavy sites; false for simple/static pages.",
-      "If extract returns an empty result, it will explain why (login wall, blocked content, etc.) — do not retry blindly.",
+      "Use extract to read a webpage and get specific information from it — prices, articles, tables, profiles, API docs, documentation, etc.",
+      "Always use search_web first to find URLs, then extract to get the actual content from those URLs.",
+      "Provide a clear prompt describing what data to extract — be specific about what fields or information you need from the page.",
+      "Use schema when you need structured JSON output — describe the shape of data you want (e.g. array of products with name, price, description).",
+      "Only ONE extract call per batch — combine multiple URLs into a single call to save time.",
+      "Set useBrowser: false for simple pages (HTML docs, blogs); keep true (default) for JS-heavy sites (SPAs, dashboards).",
+      "If extract fails or returns empty, read the error — it may be a login wall, blocked page, or the content didn't contain the requested data.",
     ],
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { description: "URLs to extract from" }),
