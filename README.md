@@ -215,30 +215,6 @@ Transitive (via undici in node_modules):
 - 5 different User-Agents (Chrome, Edge, Firefox, Safari, Linux)
 - Randomly selected to avoid bot detection patterns
 
-## Rate Limits & Best Practices
-
-### DuckDuckGo Rate Limits
-
-- **Warning:** Do NOT call `search_web` multiple times in a row
-- DuckDuckGo blocks rapid requests (202 Challenge)
-- **Recommendation:** Wait at least a few seconds between `search_web` calls
-- Use the `limit` parameter to get fewer results (default: 10)
-
-### Batch Restrictions
-
-- **`extract`:** Only ONE `extract` call per batch
-- If multiple `extract` calls are sent in a single request, only the first executes
-- The batch flag resets on each new user message (`turn_start`)
-- On error: the batch flag is reset so next turn can retry
-
-### Best Practices
-
-- Always use `search_web` first to find URLs, then `extract` to get content
-- Provide clear prompts for extraction
-- Use `schema` for structured JSON output
-- Set `useBrowser: false` for simple pages (HTML docs, blogs)
-- Keep `useBrowser: true` for JS-heavy sites (SPAs, dashboards)
-- Handle errors gracefully — pages may be blocked, require login, or not contain requested data
 
 ## License
 
