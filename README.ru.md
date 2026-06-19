@@ -141,13 +141,13 @@ LLM_API_KEY=your-api-key-here  # опционально, для аутентиф
 Runtime (в `package.json`):
 - `typebox` — определения схем для параметров инструментов
 - `playwright` — извлечение контента через браузер (JS-интенсивные сайты)
+- `undici` — HTTP-клиент с поддержкой прокси
 
 Peer:
 - `@mariozechner/pi-coding-agent` — API расширений Pi
 - `@mariozechner/pi-tui` — компоненты TUI Pi (Text и др.)
 
-Транзитивные (через undici в node_modules):
-- `undici` — HTTP-клиент с поддержкой прокси
+Встроенные:
 - `node:zlib` — декомпрессия (gzip, br, deflate)
 
 > **Примечание:** `playwright` требует установки бинарников Chromium. Запустите `npx playwright install chromium` после `npm install`.

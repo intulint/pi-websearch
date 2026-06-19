@@ -139,13 +139,13 @@ The extension selects the LLM model using the following priority:
 Runtime (in `package.json`):
 - `typebox` — Schema definitions for tool parameters
 - `playwright` — Browser-based content extraction (JS-heavy sites)
+- `undici` — HTTP client with proxy support
 
 Peer:
 - `@mariozechner/pi-coding-agent` — Pi extension API
 - `@mariozechner/pi-tui` — Pi TUI components (Text, etc.)
 
-Transitive (via undici in node_modules):
-- `undici` — HTTP client with proxy support
+Built-in:
 - `node:zlib` — Decompression (gzip, br, deflate)
 
 > **Note:** `playwright` requires Chromium browser binaries. Run `npx playwright install chromium` after `npm install`.
