@@ -117,12 +117,20 @@ export function resolveModelFromPi(
   const baseUrl = source.baseUrl || "";
   if (baseUrl) {
     detectedBaseUrl = baseUrl;
-  } else if (registry && typeof registry === "object" && "find" in registry) {
+  }
+
+  // Always try registry lookup to get apiKey (even if baseUrl already set)
+  if (registry && typeof registry === "object" && "find" in registry) {
     const findFn = (registry as { find: (provider: string, id: string) => unknown }).find;
     const found = findFn(source.provider ?? "", source.id);
     if (found && typeof found === "object" && found !== null) {
-      detectedBaseUrl = (found as { baseUrl?: string }).baseUrl ?? "";
-      detectedApiKey = (found as { apiKey?: string }).apiKey ?? "";
+      const model = found as { baseUrl?: string; apiKey?: string };
+      if (!detectedBaseUrl) {
+        detectedBaseUrl = model.baseUrl ?? "";
+      }
+      if (!detectedApiKey) {
+        detectedApiKey = model.apiKey ?? "";
+      }
     }
   }
 }

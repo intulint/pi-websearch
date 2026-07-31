@@ -116,10 +116,10 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     flushLogs();
   });
 
-  pi.on("model_select", (event, _ctx) => {
+  pi.on("model_select", (event, ctx) => {
     const m = event.model as ExtModel | undefined;
     if (m?.id) {
-      updateDetectedModel(m.id, m.baseUrl);
+      resolveModelFromPi(m, ctx.modelRegistry);
     }
   });
 
