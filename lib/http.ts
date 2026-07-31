@@ -12,6 +12,7 @@ import type { RequestInit, Response, Dispatcher } from "undici";
 // ============================================================================
 
 let _proxyAgent: Dispatcher | undefined;
+let _proxyAgentKey: string | undefined;
 let _directAgent: Dispatcher | undefined;
 
 /**
@@ -87,26 +88,25 @@ function getDispatcher(url?: string): Dispatcher | undefined {
     return _directAgent;
   }
 
-  // Cached proxy agent
-  if (_proxyAgent) return _proxyAgent;
-
   const proxyUrl =
     process.env.HTTP_PROXY ||
     process.env.HTTPS_PROXY ||
     process.env.ALL_PROXY;
 
-  if (!proxyUrl) {
-    _proxyAgent = new Agent({ connectTimeout: 30_000 });
-    return _proxyAgent;
+  // Recreate the dispatcher when the proxy configuration changes (or is
+  // removed) — a cached agent would otherwise pin the first proxy forever.
+  if (_proxyAgentKey !== proxyUrl) {
+    _proxyAgent = proxyUrl
+      ? new ProxyAgent({
+          uri: proxyUrl,
+          proxyTunnel: false,
+          requestTls: {
+            rejectUnauthorized: false,
+          },
+        })
+      : new Agent({ connectTimeout: 30_000 });
+    _proxyAgentKey = proxyUrl;
   }
-
-  _proxyAgent = new ProxyAgent({
-    uri: proxyUrl,
-    proxyTunnel: false,
-    requestTls: {
-      rejectUnauthorized: false,
-    },
-  });
 
   return _proxyAgent;
 }

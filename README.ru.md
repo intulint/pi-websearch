@@ -8,7 +8,7 @@
 
 ---
 
-**pi-websearch** — лёгкое Pi-расширение для веб-поиска и извлечения структурированных данных. Без стадии сборки, использует `playwright` и `typebox`, и требует `@mariozechner/pi-coding-agent` + `@mariozechner/pi-tui` как peer dependencies. Сложил — и работает.
+**pi-websearch** — лёгкое Pi-расширение для веб-поиска и извлечения структурированных данных. Без стадии сборки, использует `playwright` и `typebox`, и требует `@earendil-works/pi-coding-agent` + `@earendil-works/pi-tui` как peer dependencies. Сложил — и работает.
 
 ## Установка
 
@@ -33,7 +33,7 @@ npm install
 npx playwright install chromium
 ```
 
-Pi загружает `.ts`-файлы через jiti без стадии сборки, но `node_modules` должен присутствовать для runtime-импортов (например, `playwright`, `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui` peer dependencies).
+Pi загружает `.ts`-файлы через jiti без стадии сборки, но `node_modules` должен присутствовать для runtime-импортов (например, `playwright`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` peer dependencies).
 
 ## Инструменты
 
@@ -158,8 +158,8 @@ Runtime (в `package.json`):
 - `undici` — HTTP-клиент с поддержкой прокси
 
 Peer:
-- `@mariozechner/pi-coding-agent` — API расширений Pi
-- `@mariozechner/pi-tui` — компоненты TUI Pi (Text и др.)
+- `@earendil-works/pi-coding-agent` — API расширений Pi
+- `@earendil-works/pi-tui` — компоненты TUI Pi (Text и др.)
 
 Встроенные:
 - `node:zlib` — декомпрессия (gzip, br, deflate)

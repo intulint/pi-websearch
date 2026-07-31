@@ -13,17 +13,17 @@
  * Install deps: npm install && npx playwright install chromium
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { join, dirname } from "path";
-import { Text } from "@mariozechner/pi-tui";
+import { dirname } from "path";
+import { fileURLToPath } from "node:url";
+import { Text } from "@earendil-works/pi-tui";
 
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 import {
   initConfig,
   resolveModelFromPi,
-  updateDetectedModel,
   cachedEnvUrl,
   cachedEnvModel,
   cachedEnvApiKey,
@@ -59,7 +59,7 @@ interface ExtProviderConfig {
 
 // ── Initialization ───────────────────────────────────────────────────────────
 
-const EXTENSION_DIR = dirname(new URL(import.meta.url).pathname);
+const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 initConfig(EXTENSION_DIR);
 
 // ── Module state ─────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     promptGuidelines: [
       "Use get_current_date when you need to know today's date or day of week.",
     ],
-    parameters: Type.Object({}) as any,
+    parameters: Type.Object({}),
     async execute() {
       const now = new Date();
       const isoDate = now.toISOString().split("T")[0];
@@ -174,7 +174,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       limit: Type.Optional(
         Type.Number({ description: "Maximum number of results (default: 10)" }),
       ),
-    }) as any,
+    }),
     async execute(_toolCallId, params: { query: string; limit?: number }, signal, _onUpdate, _ctx) {
       const limit = params.limit ?? 10;
       const data = await searchDdg(params.query, limit, signal);
@@ -256,7 +256,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
           description: "Use Playwright browser for JS-heavy sites (default: true)",
         }),
       ),
-    }) as any,
+    }),
     async execute(_toolCallId, params: {
       urls: string[];
       prompt?: string;

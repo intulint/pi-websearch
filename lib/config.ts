@@ -103,8 +103,8 @@ export function buildChatUrl(baseUrl: string): string {
 
 export function updateDetectedModel(id: string, baseUrl?: string, apiKey?: string): void {
   detectedModelId = id;
-  if (baseUrl) detectedBaseUrl = baseUrl;
-  if (apiKey !== undefined) detectedApiKey = apiKey;
+  detectedBaseUrl = baseUrl ?? "";
+  detectedApiKey = apiKey ?? "";
 }
 
 export async function resolveModelFromPi(
@@ -113,7 +113,12 @@ export async function resolveModelFromPi(
 ): Promise<void> {
   if (!source?.id) return;
 
+  // New model → reset previously detected values so stale data from the
+  // previous model never leaks through (different baseUrl / apiKey).
   detectedModelId = source.id;
+  detectedBaseUrl = "";
+  detectedApiKey = "";
+
   const baseUrl = source.baseUrl || "";
   if (baseUrl) {
     detectedBaseUrl = baseUrl;
@@ -133,11 +138,11 @@ export async function resolveModelFromPi(
         if (!detectedBaseUrl) {
           detectedBaseUrl = model.baseUrl ?? "";
         }
-        if (!detectedApiKey) {
-          const auth = await r.getApiKeyAndHeaders(found);
-          if (auth.ok && auth.apiKey) {
-            detectedApiKey = auth.apiKey;
-          }
+        // Always fetch the key fresh — a model without a key must clear it,
+        // not keep the previous model's key.
+        const auth = await r.getApiKeyAndHeaders(found);
+        if (auth.ok && auth.apiKey) {
+          detectedApiKey = auth.apiKey;
         }
       }
     } catch {

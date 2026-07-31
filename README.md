@@ -8,7 +8,7 @@
 
 ---
 
-**pi-websearch** — a lightweight Pi extension for web search and structured content extraction. No build step, uses `playwright` and `typebox`, and requires `@mariozechner/pi-coding-agent` + `@mariozechner/pi-tui` as peer dependencies. Drop it in and it works.
+**pi-websearch** — a lightweight Pi extension for web search and structured content extraction. No build step, uses `playwright` and `typebox`, and requires `@earendil-works/pi-coding-agent` + `@earendil-works/pi-tui` as peer dependencies. Drop it in and it works.
 
 ## Installation
 
@@ -33,7 +33,7 @@ npm install
 npx playwright install chromium
 ```
 
-Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`, `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui` peer dependencies).
+Pi loads `.ts` files via jiti without a build step, but `node_modules` must be present for runtime imports (e.g., `playwright`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` peer dependencies).
 
 ## Tools
 
@@ -156,8 +156,8 @@ Runtime (in `package.json`):
 - `undici` — HTTP client with proxy support
 
 Peer:
-- `@mariozechner/pi-coding-agent` — Pi extension API
-- `@mariozechner/pi-tui` — Pi TUI components (Text, etc.)
+- `@earendil-works/pi-coding-agent` — Pi extension API
+- `@earendil-works/pi-tui` — Pi TUI components (Text, etc.)
 
 Built-in:
 - `node:zlib` — Decompression (gzip, br, deflate)
