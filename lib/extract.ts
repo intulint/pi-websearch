@@ -3,7 +3,7 @@
  */
 
 import { httpGet, httpPostJson, type RequestOptions } from "./http.js";
-import { resolveModel, buildChatUrl } from "./config.js";
+import { resolveModel, getPiModelConfig, buildChatUrl } from "./config.js";
 import { logToolCall } from "./logger.js";
 
 // ============================================================================
@@ -155,30 +155,16 @@ const EXTRACTION_SYSTEM_PROMPT = [
   "If you cannot find the requested data, you MUST explain why — e.g. the page didn't contain it, the content was blocked, the page was a login wall, etc.",
 ].join("\n");
 
-export async function llmExtract(
-  content: string,
-  prompt: string | null,
-  schema: unknown | null,
+/**
+ * Call an LLM with the given config and return the extracted text.
+ * Extracted to allow retry with different configs.
+ */
+async function callLLM(
+  llmConfig: { url: string; model: string; apiKey?: string },
+  systemMsg: string,
+  userContent: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  let systemMsg = EXTRACTION_SYSTEM_PROMPT;
-
-  if (schema) {
-    systemMsg += `\n\nReturn the data as JSON matching this schema:\n${JSON.stringify(schema, null, 2)}`;
-  }
-
-  const userContent = prompt
-    ? `${content}\n\n---\nExtraction request: ${prompt}`
-    : content;
-
-  const llmConfig = resolveModel();
-  if (!llmConfig) {
-    throw new Error(
-      "No LLM configuration found.\n" +
-      "Set LLM_URL and LLM_MODEL in .env, or switch to a model in pi.",
-    );
-  }
-
   const chatUrl = buildChatUrl(llmConfig.url);
 
   const requestOptions: RequestOptions = {
@@ -215,6 +201,60 @@ export async function llmExtract(
     throw new Error("No content in LLM response");
   }
   return contentBlocks.content;
+}
+
+export async function llmExtract(
+  content: string,
+  prompt: string | null,
+  schema: unknown | null,
+  signal?: AbortSignal,
+): Promise<string> {
+  let systemMsg = EXTRACTION_SYSTEM_PROMPT;
+
+  if (schema) {
+    systemMsg += `\n\nReturn the data as JSON matching this schema:\n${JSON.stringify(schema, null, 2)}`;
+  }
+
+  const userContent = prompt
+    ? `${content}\n\n---\nExtraction request: ${prompt}`
+    : content;
+
+  const llmConfig = resolveModel();
+  if (!llmConfig) {
+    throw new Error(
+      "No LLM configuration found.\n" +
+      "Set LLM_URL and LLM_MODEL in .env, or switch to a model in pi.",
+    );
+  }
+
+  // If using .env model, prepare Pi model as fallback
+  const piConfig = llmConfig.source === "env" ? getPiModelConfig() : null;
+
+  // Try primary model (.env or pi)
+  try {
+    return await callLLM(llmConfig, systemMsg, userContent, signal);
+  } catch (primaryError) {
+    const primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+
+    // If no fallback available, rethrow
+    if (!piConfig) {
+      throw primaryError;
+    }
+
+    // If primary model failed, try Pi model as fallback
+    try {
+      const result = await callLLM(piConfig, systemMsg, userContent, signal);
+      logToolCall("extract-fallback", { from: llmConfig.model, to: piConfig.model }, "success");
+      return result;
+    } catch (fallbackError) {
+      const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(
+        `Both models failed.\n` +
+        `Env model (${llmConfig.model}): ${primaryMsg}\n` +
+        `Pi model (${piConfig.model}): ${fallbackMsg}`,
+      );
+    }
+  }
 }
 
 // ============================================================================

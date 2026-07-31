@@ -70,11 +70,21 @@ export function ensureEnvLoaded(): void {
 // Model resolution
 // ============================================================================
 
-export function resolveModel(): { url: string; model: string; apiKey?: string } | null {
+export function resolveModel(): { url: string; model: string; apiKey?: string; source: "env" | "pi" } | null {
   ensureEnvLoaded();
   if (cachedEnvUrl && cachedEnvModel) {
-    return { url: cachedEnvUrl, model: cachedEnvModel, apiKey: cachedEnvApiKey || undefined };
+    return { url: cachedEnvUrl, model: cachedEnvModel, apiKey: cachedEnvApiKey || undefined, source: "env" };
   }
+  const pi = getPiModelConfig();
+  if (pi) return { ...pi, source: "pi" };
+  return null;
+}
+
+/**
+ * Get only the Pi-detected model config (never .env).
+ * Used as fallback when .env model is unreachable.
+ */
+export function getPiModelConfig(): { url: string; model: string; apiKey?: string } | null {
   if (detectedModelId && detectedBaseUrl) {
     return { url: detectedBaseUrl, model: detectedModelId, apiKey: detectedApiKey || undefined };
   }

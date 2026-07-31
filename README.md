@@ -134,6 +134,20 @@ The extension selects the LLM model using the following priority:
 1. **Explicit model from `.env`** — if `.env` exists with `LLM_URL` and `LLM_MODEL`, these are used for the `extract` tool's LLM calls.
 2. **Auto-detected model from Pi** — if no `.env`, the extension uses the currently active model in Pi.
 
+### Fallback mechanism
+
+If the `.env` model is unreachable (connection refused, timeout, HTTP error), the extension automatically falls back to the currently active Pi model:
+
+```
+.env model (LLM_URL + LLM_MODEL)
+  ├─ ❌ Failed (unreachable)
+  └─ ► Pi active model (fallback)
+       ├─ ✅ Success → result returned
+       └─ ❌ Failed → error with both failure messages
+```
+
+The fallback is transparent — no user action needed. Both model names and error messages are reported in the final error if both fail.
+
 ## Dependencies
 
 Runtime (in `package.json`):
