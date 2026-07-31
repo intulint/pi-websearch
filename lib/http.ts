@@ -16,16 +16,66 @@ let _directAgent: Dispatcher | undefined;
 
 /**
  * Check if a URL should bypass the proxy and connect directly.
- * DuckDuckGo blocks requests from the configured proxy IP (202 Challenge),
- * so we always connect directly to duckduckgo.com.
+ * Respects NO_PROXY env var (comma-separated: hostnames, domain suffixes with
+ * leading dot, CIDR subnets). DuckDuckGo always bypasses because it blocks
+ * requests from the configured proxy IP (202 Challenge).
  */
 function shouldBypassProxy(url: string): boolean {
+  let host: string;
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    return host === "duckduckgo.com" || host.endsWith(".duckduckgo.com");
+    host = new URL(url).hostname.toLowerCase();
   } catch {
     return false;
   }
+
+  // DuckDuckGo always bypasses proxy (blocked by DDG)
+  if (host === "duckduckgo.com" || host.endsWith(".duckduckgo.com")) {
+    return true;
+  }
+
+  // Respect NO_PROXY
+  const noProxy = process.env.NO_PROXY;
+  if (!noProxy) return false;
+
+  return noProxy.split(",").some((entry) => {
+    const pattern = entry.trim();
+    if (!pattern) return false;
+
+    // CIDR subnet (e.g. 192.168.1.0/24)
+    const cidrMatch = pattern.match(/^([\d.]+)\/(\d+)$/);
+    if (cidrMatch) {
+      return ipInCidr(host, cidrMatch[1], parseInt(cidrMatch[2], 10));
+    }
+
+    // Domain suffix (e.g. .local, .lan)
+    if (pattern.startsWith(".")) {
+      return host === pattern.slice(1) || host.endsWith(pattern);
+    }
+
+    // Exact match (hostname or IP)
+    return host === pattern;
+  });
+}
+
+/** Check if an IP address (v4) is within a CIDR subnet. */
+function ipInCidr(ip: string, subnet: string, bits: number): boolean {
+  const ipNum = ipv4ToNum(ip);
+  const subnetNum = ipv4ToNum(subnet);
+  if (ipNum === null || subnetNum === null) return false;
+  const mask = ~((1 << (32 - bits)) - 1) >>> 0; // unsigned 32-bit
+  return (ipNum & mask) === (subnetNum & mask);
+}
+
+function ipv4ToNum(ip: string): number | null {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let num = 0;
+  for (const part of parts) {
+    const n = parseInt(part, 10);
+    if (isNaN(n) || n < 0 || n > 255) return null;
+    num = (num << 8) | n;
+  }
+  return num >>> 0;
 }
 
 function getDispatcher(url?: string): Dispatcher | undefined {
