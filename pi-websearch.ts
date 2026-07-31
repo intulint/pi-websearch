@@ -24,9 +24,6 @@ import { Text } from "@earendil-works/pi-tui";
 import {
   initConfig,
   resolveModelFromPi,
-  cachedEnvUrl,
-  cachedEnvModel,
-  cachedEnvApiKey,
 } from "./lib/config.js";
 import { searchDdg, type SearchResult } from "./lib/search.js";
 import { extractContent } from "./lib/extract.js";
@@ -40,23 +37,6 @@ interface ExtModel {
   baseUrl?: string;
 }
 
-interface ExtModelRegistryEntry {
-  id: string;
-  name: string;
-  input?: string[];
-  contextWindow?: number;
-  baseUrl?: string;
-  apiKey?: string;
-}
-
-interface ExtProviderConfig {
-  name: string;
-  baseUrl: string;
-  api: string;
-  models: ExtModelRegistryEntry[];
-  apiKey?: string;
-}
-
 // ── Initialization ───────────────────────────────────────────────────────────
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
@@ -64,8 +44,6 @@ initConfig(EXTENSION_DIR);
 
 // ── Module state ─────────────────────────────────────────────────────────────
 
-let _piRef: ExtensionAPI | undefined;
-let _envProviderRegistered = false;
 let _extractAllowed = true; // batch restriction: one extract per turn
 
 // ============================================================================
@@ -73,46 +51,13 @@ let _extractAllowed = true; // batch restriction: one extract per turn
 // ============================================================================
 
 export default function piWebsearch(pi: ExtensionAPI): void {
-  _piRef = pi;
-
   // --- Model events ---
 
   pi.on("session_start", async (_event, ctx) => {
     await resolveModelFromPi(ctx.model, ctx.modelRegistry);
-
-    // Register env provider once per session
-    if (cachedEnvUrl && cachedEnvModel) {
-      const safeId = cachedEnvModel.replace(/[/:]/g, "-");
-      const providerName = "env-overridden";
-
-      const providerConfig: ExtProviderConfig = {
-        name: "Env Overridden",
-        baseUrl: cachedEnvUrl,
-        api: "openai-completions",
-        models: [
-          {
-            id: safeId,
-            name: cachedEnvModel,
-            input: ["text"],
-            contextWindow: 131072,
-          },
-        ],
-      };
-      if (cachedEnvApiKey) {
-        providerConfig.apiKey = cachedEnvApiKey;
-      }
-      // Always register/overwrite env provider so the latest .env is active
-      pi.registerProvider(providerName, providerConfig as any);
-      _envProviderRegistered = true;
-    }
   });
 
   pi.on("session_shutdown", () => {
-    // Clean up env provider and reset for next session
-    if (_envProviderRegistered) {
-      pi.unregisterProvider("env-overridden");
-      _envProviderRegistered = false;
-    }
     flushLogs();
   });
 
@@ -276,39 +221,15 @@ export default function piWebsearch(pi: ExtensionAPI): void {
       }
       _extractAllowed = false;
 
-      // Capture original model info for restoration after tool execution
-      const originalProvider = _ctx.model?.provider;
-      const originalId = _ctx.model?.id;
-      const origModel =
-        (originalProvider && originalId
-          ? _ctx.modelRegistry?.find(originalProvider, originalId)
-          : undefined) as ExtModelRegistryEntry | undefined;
-
       try {
-        // Switch to .env model for the LLM call (if .env is configured)
-        if (_piRef && cachedEnvUrl && cachedEnvModel) {
-          const safeId = cachedEnvModel.replace(/[/:]/g, "-");
-          const envModel = _ctx.modelRegistry?.find("env-overridden", safeId);
-          if (envModel) {
-            await _piRef.setModel(envModel as any);
-          }
-        }
-
-        try {
-          const result = await extractContent(
-            params.urls,
-            params.prompt ?? null,
-            params.schema ?? null,
-            params.useBrowser !== false,
-            signal,
-          );
-          return { content: [{ type: "text", text: result }], details: { urls: params.urls, prompt: params.prompt, schema: params.schema } };
-        } finally {
-          // Restore original Pi model after tool execution
-          if (_piRef && originalProvider && originalId && origModel) {
-            await _piRef.setModel(origModel as any);
-          }
-        }
+        const result = await extractContent(
+          params.urls,
+          params.prompt ?? null,
+          params.schema ?? null,
+          params.useBrowser !== false,
+          signal,
+        );
+        return { content: [{ type: "text", text: result }], details: { urls: params.urls, prompt: params.prompt, schema: params.schema } };
       } catch (e) {
         _extractAllowed = true; // Reset on error so next turn can retry
         throw e;
