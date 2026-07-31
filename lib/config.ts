@@ -26,20 +26,6 @@ export function initConfig(extDir: string): void {
   EXTENSION_DIR = extDir;
 }
 
-interface EnvConfig {
-  url: string;
-  model: string;
-  apiKey: string;
-}
-
-function getEnvConfig(): EnvConfig {
-  return {
-    url: process.env.LLM_URL || "",
-    model: process.env.LLM_MODEL || "",
-    apiKey: process.env.LLM_API_KEY || "",
-  };
-}
-
 export function loadEnvFile(path: string): void {
   if (!existsSync(path)) return;
   try {
@@ -51,7 +37,11 @@ export function loadEnvFile(path: string): void {
       if (eq === -1) continue;
       const key = trimmed.slice(0, eq).trim();
       const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-      if (key && !process.env[key]) process.env[key] = value;
+      // Keep values module-local — never write to process.env, otherwise
+      // they leak into the global environment and affect other extensions.
+      if (key === "LLM_URL") cachedEnvUrl = value;
+      else if (key === "LLM_MODEL") cachedEnvModel = value;
+      else if (key === "LLM_API_KEY") cachedEnvApiKey = value;
     }
   } catch {
     /* ignore */
@@ -60,10 +50,6 @@ export function loadEnvFile(path: string): void {
 
 export function ensureEnvLoaded(): void {
   loadEnvFile(join(EXTENSION_DIR, ".env"));
-  const env = getEnvConfig();
-  cachedEnvUrl = env.url;
-  cachedEnvModel = env.model;
-  cachedEnvApiKey = env.apiKey;
 }
 
 // ============================================================================
