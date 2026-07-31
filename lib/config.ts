@@ -107,10 +107,10 @@ export function updateDetectedModel(id: string, baseUrl?: string, apiKey?: strin
   if (apiKey !== undefined) detectedApiKey = apiKey;
 }
 
-export function resolveModelFromPi(
+export async function resolveModelFromPi(
   source: { id?: string; provider?: string; baseUrl?: string } | undefined,
   registry: unknown,
-): void {
+): Promise<void> {
   if (!source?.id) return;
 
   detectedModelId = source.id;
@@ -119,23 +119,29 @@ export function resolveModelFromPi(
     detectedBaseUrl = baseUrl;
   }
 
-  // Always try registry lookup to get apiKey (even if baseUrl already set)
+  // Get baseUrl + apiKey from registry (apiKey is async via getApiKeyAndHeaders)
   const provider = source.provider ?? "";
-  if (registry && typeof registry === "object" && "find" in registry && provider) {
+  if (registry && typeof registry === "object" && "find" in registry && "getApiKeyAndHeaders" in registry && provider) {
     try {
-      const findFn = (registry as { find: (provider: string, id: string) => unknown }).find;
-      const found = findFn(provider, source.id);
+      const r = registry as {
+        find: (p: string, id: string) => unknown;
+        getApiKeyAndHeaders: (m: unknown) => Promise<{ ok: boolean; apiKey?: string }>;
+      };
+      const found = r.find(provider, source.id);
       if (found && typeof found === "object" && found !== null) {
-        const model = found as { baseUrl?: string; apiKey?: string };
+        const model = found as { baseUrl?: string };
         if (!detectedBaseUrl) {
           detectedBaseUrl = model.baseUrl ?? "";
         }
         if (!detectedApiKey) {
-          detectedApiKey = model.apiKey ?? "";
+          const auth = await r.getApiKeyAndHeaders(found);
+          if (auth.ok && auth.apiKey) {
+            detectedApiKey = auth.apiKey;
+          }
         }
       }
     } catch {
-      // registry.find() may throw if provider not registered — ignore silently
+      // registry.find/getApiKeyAndHeaders may throw — ignore silently
     }
   }
 }

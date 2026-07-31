@@ -78,7 +78,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
   // --- Model events ---
 
   pi.on("session_start", async (_event, ctx) => {
-    resolveModelFromPi(ctx.model, ctx.modelRegistry);
+    await resolveModelFromPi(ctx.model, ctx.modelRegistry);
 
     // Register env provider once per session
     if (cachedEnvUrl && cachedEnvModel) {
@@ -116,10 +116,10 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     flushLogs();
   });
 
-  pi.on("model_select", (event, ctx) => {
+  pi.on("model_select", async (event, ctx) => {
     const m = event.model as ExtModel | undefined;
     if (m?.id) {
-      resolveModelFromPi(m, ctx.modelRegistry);
+      await resolveModelFromPi(m, ctx.modelRegistry);
     }
   });
 
