@@ -120,17 +120,22 @@ export function resolveModelFromPi(
   }
 
   // Always try registry lookup to get apiKey (even if baseUrl already set)
-  if (registry && typeof registry === "object" && "find" in registry) {
-    const findFn = (registry as { find: (provider: string, id: string) => unknown }).find;
-    const found = findFn(source.provider ?? "", source.id);
-    if (found && typeof found === "object" && found !== null) {
-      const model = found as { baseUrl?: string; apiKey?: string };
-      if (!detectedBaseUrl) {
-        detectedBaseUrl = model.baseUrl ?? "";
+  const provider = source.provider ?? "";
+  if (registry && typeof registry === "object" && "find" in registry && provider) {
+    try {
+      const findFn = (registry as { find: (provider: string, id: string) => unknown }).find;
+      const found = findFn(provider, source.id);
+      if (found && typeof found === "object" && found !== null) {
+        const model = found as { baseUrl?: string; apiKey?: string };
+        if (!detectedBaseUrl) {
+          detectedBaseUrl = model.baseUrl ?? "";
+        }
+        if (!detectedApiKey) {
+          detectedApiKey = model.apiKey ?? "";
+        }
       }
-      if (!detectedApiKey) {
-        detectedApiKey = model.apiKey ?? "";
-      }
+    } catch {
+      // registry.find() may throw if provider not registered — ignore silently
     }
   }
 }
