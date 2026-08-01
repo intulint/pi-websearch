@@ -278,9 +278,13 @@ export async function httpPostJson(
 ): Promise<unknown> {
   const payload = JSON.stringify(body);
 
+  // NOTE: do NOT set Content-Length manually — undici computes it from the
+  // body itself. A manual Content-Length combined with a string body breaks
+  // when two undici copies mix inside the pi extension runtime (fetch from
+  // the extension's undici, core request validation from pi's undici):
+  // "invalid content-length header" (UND_ERR_INVALID_ARG).
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Content-Length": String(Buffer.byteLength(payload)),
     ...options.headers,
   };
 
