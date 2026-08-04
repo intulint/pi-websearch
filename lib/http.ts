@@ -189,11 +189,16 @@ async function executeRequest(
     fetchTimeout = AbortSignal.timeout(options.timeoutMs);
   }
 
+  // Combine caller abort signal and internal timeout — AbortSignal.any lets
+  // both work simultaneously (previously a passed signal disabled the timeout).
+  const signals = [options.signal, fetchTimeout].filter(Boolean) as AbortSignal[];
+  const combinedSignal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+
   const init: RequestInit = {
     method,
     headers: allHeaders,
     redirect: "manual",
-    signal: options.signal ?? fetchTimeout,
+    signal: combinedSignal,
   };
 
   if (method === "POST" && options.body) {
@@ -211,8 +216,11 @@ async function executeRequest(
     if (!location) {
       throw new Error(`Redirect ${response.status} without location header`);
     }
+    // Resolve relative/absolute redirects against the current URL so that
+    // relative Location headers (e.g. "/path") work correctly.
+    const nextUrl = new URL(location, url).toString();
     const redirectMethod = method === "POST" ? "GET" : method;
-    return executeRequest(redirectMethod, location, options, redirectsLeft - 1);
+    return executeRequest(redirectMethod, nextUrl, options, redirectsLeft - 1);
   }
 
   const arrayBuffer = await response.arrayBuffer();
