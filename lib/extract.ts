@@ -276,6 +276,9 @@ export async function extractContent(
     logToolCall("extract", { urls }, JSON.stringify({ error: "At least one of prompt or schema is required." }));
     throw new Error("At least one of prompt or schema is required.");
   }
+  if (!urls.length) {
+    throw new Error("At least one URL is required.");
+  }
 
   const parts: string[] = [];
   for (const url of urls) {

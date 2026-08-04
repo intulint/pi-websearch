@@ -117,7 +117,11 @@ export default function piWebsearch(pi: ExtensionAPI): void {
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(
-        Type.Number({ description: "Maximum number of results (default: 10)" }),
+        Type.Number({
+          description: "Maximum number of results (default: 10, 1–50)",
+          minimum: 1,
+          maximum: 50,
+        }),
       ),
     }),
     async execute(_toolCallId, params: { query: string; limit?: number }, signal, _onUpdate, _ctx) {

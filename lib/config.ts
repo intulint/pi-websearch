@@ -78,7 +78,8 @@ export function getPiModelConfig(): { url: string; model: string; apiKey?: strin
 }
 
 export function buildChatUrl(baseUrl: string): string {
-  const url = baseUrl.trim();
+  // Normalize: strip trailing slashes so "/v1/" doesn't produce a double path.
+  const url = baseUrl.trim().replace(/\/+$/, "");
   // Already has the full path
   if (url.endsWith("/v1/chat/completions")) return url;
   // Has base like "/v1" — append /chat/completions
