@@ -86,6 +86,51 @@ async function delayWithJitter(baseMs: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, baseMs + jitter));
 }
 
+// ============================================================================
+// Result parsing (pure — unit-testable)
+// ============================================================================
+
+export function parseResults(html: string, limit: number): SearchResult[] {
+  const resultBlocks = html.match(
+    /<div class="result[^"]*results_links[^"]*"[^>]*>[\s\S]*?(?=<div class="result[^"]*results_links|$)/g,
+  );
+  if (!resultBlocks) return [];
+
+  const results: SearchResult[] = [];
+  for (let i = 0; i < Math.min(limit, resultBlocks.length); i++) {
+    const parsed = parseResultBlock(resultBlocks[i]);
+    if (parsed) results.push(parsed);
+  }
+  return results;
+}
+
+function parseResultBlock(block: string): SearchResult | null {
+  const titleMatch = block.match(
+    /<h2[^>]*>[\s\S]*?<a[^>]*class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/,
+  );
+  const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, " ").trim() : "";
+  if (!title) return null;
+
+  const urlMatch = block.match(
+    /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"/,
+  );
+  const searchUrl = urlMatch ? decodeDdgUrl(urlMatch[1]) : "";
+  if (!searchUrl) return null;
+
+  const snippetMatch = block.match(
+    /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
+  );
+  const description = snippetMatch
+    ? snippetMatch[1].replace(/<[^>]+>/g, " ").trim()
+    : "";
+
+  return { title, url: searchUrl, description };
+}
+
+// ============================================================================
+// DuckDuckGo search
+// ============================================================================
+
 export async function searchDdg(
   query: string,
   limit: number,
@@ -143,41 +188,7 @@ export async function searchDdg(
     }
 
     // Successful response — parse results
-    const resultBlocks = html.match(
-      /<div class="result[^"]*results_links[^"]*"[^>]*>[\s\S]*?(?=<div class="result[^"]*results_links|$)/g,
-    );
-    const results: SearchResult[] = [];
-
-    if (resultBlocks) {
-      for (let i = 0; i < Math.min(limit, resultBlocks.length); i++) {
-        const block = resultBlocks[i];
-
-        const titleMatch = block.match(
-          /<h2[^>]*>[\s\S]*?<a[^>]*class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/,
-        );
-        const title = titleMatch
-          ? titleMatch[1].replace(/<[^>]+>/g, " ").trim()
-          : "";
-        if (!title) continue;
-
-        const urlMatch = block.match(
-          /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"/,
-        );
-        const searchUrl = urlMatch ? decodeDdgUrl(urlMatch[1]) : "";
-        if (!searchUrl) continue;
-
-        const snippetMatch = block.match(
-          /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
-        );
-        const description = snippetMatch
-          ? snippetMatch[1].replace(/<[^>]+>/g, " ").trim()
-          : "";
-
-        results.push({ title, url: searchUrl, description });
-      }
-    }
-
-    return results;
+    return parseResults(html, limit);
   }
 
   // Should never reach here (loop always returns or throws)
