@@ -10,9 +10,9 @@ import { join } from "path";
 // ============================================================================
 
 export let EXTENSION_DIR = "";
-export let cachedEnvUrl = "";
-export let cachedEnvModel = "";
-export let cachedEnvApiKey = "";
+let cachedEnvUrl = "";
+let cachedEnvModel = "";
+let cachedEnvApiKey = "";
 
 let detectedModelId = "";
 let detectedBaseUrl = "";
@@ -26,7 +26,7 @@ export function initConfig(extDir: string): void {
   EXTENSION_DIR = extDir;
 }
 
-export function loadEnvFile(path: string): void {
+function loadEnvFile(path: string): void {
   if (!existsSync(path)) return;
   try {
     const content = readFileSync(path, "utf-8");
@@ -48,7 +48,7 @@ export function loadEnvFile(path: string): void {
   }
 }
 
-export function ensureEnvLoaded(): void {
+function ensureEnvLoaded(): void {
   loadEnvFile(join(EXTENSION_DIR, ".env"));
 }
 
@@ -85,12 +85,6 @@ export function buildChatUrl(baseUrl: string): string {
   if (url.endsWith("/v1")) return `${url}/chat/completions`;
   // Default: assume "/v1" base
   return `${url}/v1/chat/completions`;
-}
-
-export function updateDetectedModel(id: string, baseUrl?: string, apiKey?: string): void {
-  detectedModelId = id;
-  detectedBaseUrl = baseUrl ?? "";
-  detectedApiKey = apiKey ?? "";
 }
 
 export async function resolveModelFromPi(
