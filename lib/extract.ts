@@ -276,12 +276,12 @@ export async function extractContent(
   useBrowser: boolean = true,
   signal?: AbortSignal,
 ): Promise<string> {
+  if (!urls.length) {
+    throw new Error("At least one URL is required.");
+  }
   if (!prompt && !schema) {
     logToolCall("extract", { urls }, JSON.stringify({ error: "At least one of prompt or schema is required." }));
     throw new Error("At least one of prompt or schema is required.");
-  }
-  if (!urls.length) {
-    throw new Error("At least one URL is required.");
   }
 
   const parts: string[] = [];
