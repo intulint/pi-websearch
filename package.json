@@ -35,9 +35,14 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@earendil-works/pi-tui": "*"
   },
   "bundleDependencies": [
     "playwright"
-  ]
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test tests/"
+  }
 }
