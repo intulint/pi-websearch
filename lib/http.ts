@@ -79,6 +79,9 @@ function ipv4ToNum(ip: string): number | null {
   return num >>> 0;
 }
 
+/**
+ * Get the dispatcher for a URL (direct agent for NO_PROXY bypass, else proxy agent).
+ */
 function getDispatcher(url?: string): Dispatcher | undefined {
   // If URL is specified and should bypass proxy, use direct connection
   if (url && shouldBypassProxy(url)) {
@@ -112,6 +115,17 @@ function getDispatcher(url?: string): Dispatcher | undefined {
   }
 
   return _proxyAgent;
+}
+
+/**
+ * Close cached undici agents (keep-alive sockets) — call on extension shutdown.
+ */
+export function closeAgents(): void {
+  _proxyAgent?.close().catch(() => {});
+  _directAgent?.close().catch(() => {});
+  _proxyAgent = undefined;
+  _directAgent = undefined;
+  _proxyAgentKey = undefined;
 }
 
 // ============================================================================

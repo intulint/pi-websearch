@@ -28,6 +28,7 @@ import {
 import { searchDdg, type SearchResult } from "./lib/search.js";
 import { extractContent } from "./lib/extract.js";
 import { logToolCall, flushLogs } from "./lib/logger.js";
+import { closeAgents } from "./lib/http.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ export default function piWebsearch(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", () => {
     flushLogs();
+    closeAgents();
   });
 
   pi.on("model_select", async (event, ctx) => {

@@ -34,9 +34,10 @@
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "@earendil-works/pi-tui": "*"
+    "jiti": "^2.7.0",
+    "typescript": "^5.0.0"
   },
   "bundleDependencies": [
     "playwright"
