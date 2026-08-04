@@ -111,6 +111,12 @@ LLM_API_KEY=your-api-key-here  # optional, for authenticated endpoints
 | `LLM_MODEL` | No | - | Explicit model name (overrides auto-detection) |
 | `LLM_API_KEY` | No | - | API key for authenticated endpoints |
 
+### TLS
+
+TLS certificate validation for proxied HTTPS requests is **strict by default**. If your
+proxy performs TLS inspection with a self-signed CA, set `PI_WEBSearch_INSECURE_TLS=1`
+to disable certificate validation (use only on trusted networks).
+
 ## Proxy Configuration
 
 The extension respects `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables:

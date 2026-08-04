@@ -100,9 +100,12 @@ function getDispatcher(url?: string): Dispatcher | undefined {
       ? new ProxyAgent({
           uri: proxyUrl,
           proxyTunnel: false,
-          requestTls: {
-            rejectUnauthorized: false,
-          },
+          // Strict TLS by default. Opt out only when explicitly requested
+          // (e.g. proxy doing TLS inspection with a self-signed CA):
+          //   PI_WEBSearch_INSECURE_TLS=1
+          ...(process.env.PI_WEBSearch_INSECURE_TLS === "1"
+            ? { requestTls: { rejectUnauthorized: false } }
+            : {}),
         })
       : new Agent({ connectTimeout: 30_000 });
     _proxyAgentKey = proxyUrl;
