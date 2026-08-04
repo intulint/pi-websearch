@@ -61,8 +61,7 @@ async function fetchPageWithBrowser(
   let browser: import("playwright").Browser | undefined;
   let onAbort: (() => void) | undefined;
   try {
-    const { chromium: playwrightChromium } = await import("playwright");
-    const proxyConfig = getProxyConfig();
+    const { chromium: playwrightChromium } = await import("playwright");    const proxyConfig = getProxyConfig();
 
     browser = await playwrightChromium.launch({
       headless: true,
@@ -103,7 +102,12 @@ async function fetchPageWithBrowser(
 
     return { title, text: text || "" };
   } catch (e) {
-    return { title: url, text: "", error: e instanceof Error ? e.message : String(e) };
+    const msg = e instanceof Error ? e.message : String(e);
+    // Give actionable guidance when Playwright (or its chromium binary) is missing.
+    const error = /playwright|chromium/i.test(msg)
+      ? `${msg} — install with: npx playwright install chromium (or use useBrowser: false for HTTP-only fetching)`
+      : msg;
+    return { title: url, text: "", error };
   } finally {
     if (onAbort) signal?.removeEventListener("abort", onAbort);
     if (browser) await browser.close().catch(() => {});
