@@ -108,7 +108,9 @@ function parseResultBlock(block: string): SearchResult | null {
   const titleMatch = block.match(
     /<h2[^>]*>[\s\S]*?<a[^>]*class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/,
   );
-  const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, " ").trim() : "";
+  const title = titleMatch
+    ? titleMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+    : "";
   if (!title) return null;
 
   const urlMatch = block.match(
@@ -121,7 +123,7 @@ function parseResultBlock(block: string): SearchResult | null {
     /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
   );
   const description = snippetMatch
-    ? snippetMatch[1].replace(/<[^>]+>/g, " ").trim()
+    ? snippetMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     : "";
 
   return { title, url: searchUrl, description };
