@@ -151,7 +151,7 @@ export interface FetchResponse {
 
 const MAX_REDIRECTS = 10;
 const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0";
 
 // ============================================================================
 // Internal helpers
