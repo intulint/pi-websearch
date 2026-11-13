@@ -13,17 +13,17 @@ const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 2_000;
 
 const USER_AGENTS = [
-  // Firefox — основной, DuckDuckGo лучше реагирует
+  // Firefox stable 160 (10 Nov 2026) — основной, DDG лучше реагирует
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:160.0) Gecko/20100101 Firefox/160.0",
   "Mozilla/5.0 (X11; Linux x86_64; rv:160.0) Gecko/20100101 Firefox/160.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:160.0) Gecko/20100101 Firefox/160.0",
-  // Chrome / Edge — fallback
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-  // Safari fallback
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15.7; rv:160.0) Gecko/20100101 Firefox/160.0",
+  // Chrome stable 157 (3 Nov 2026) — fallback
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36 Edg/157.0.0.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+  // Safari 26.6 — fallback
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Safari/605.1.15",
 ];
 
 // ============================================================================
@@ -80,9 +80,11 @@ function buildHeaders(): Record<string, string> {
 
   // sec-ch-ua только для Chrome/Edge (Firefox не шлёт)
   if (isChrome || ua.includes("Edg/")) {
-    headers["sec-ch-ua"] = '"Chromium";v="146", "Not=A?Brand";v="8"';
+    headers["sec-ch-ua"] = '"Not_A Brand";v="8", "Chromium";v="157", "Google Chrome";v="157"';
     headers["sec-ch-ua-mobile"] = "?0";
     headers["sec-ch-ua-platform"] = '"Windows"';
+    // Примечание: Chrome на macOS/Linux отправляет "macOS" / "Linux"
+    // Для простоты — всегда "Windows" (доминирующая платформа, DDG не проверяет строгую консистентность)
   }
 
   return headers;
