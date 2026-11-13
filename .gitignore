@@ -15,6 +15,7 @@ dist/
 *.backup
 
 # Internal documentation (not for public repo)
-ARCHITECTURE.md
-README-dev.md
-AGENTS.md
+# Все .md кроме README.md и README.ru.md
+*.md
+!README.md
+!README.ru.md
