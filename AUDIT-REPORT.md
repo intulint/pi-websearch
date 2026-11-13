@@ -74,6 +74,30 @@
 3. **🟡 Логи** (`~/.pi/logs/pi-websearch/tool_calls.log.json`) — могут содержать ПДн из поисковых запросов/контента; при необходимости — права 600 и/или очистка.
 4. **🟡 Опционально:** in-memory кэш DDG-результатов (~30 с) для снижения rate-limit; ESLint при росте кодовой базы.
 
+## DuckDuckGo anti-bot bypass — тест UA-вариантов
+
+> Дата: 2026-11-13 · Метод: последовательный запрос к `html.duckduckgo.com` с каждым UA + заголовками (задержка 2–3 с)
+> Результат: **8/8 ✅ все прошли** (HTTP 200, 10 результатов каждый)
+
+| # | Браузер | User-Agent | Статус |
+|---|---------|------------|--------|
+| 1 | Firefox 160 Windows | `rv:160.0` | ✅ HTTP 200 |
+| 2 | Firefox 160 Linux | `X11; rv:160.0` | ✅ HTTP 200 |
+| 3 | Firefox 160 macOS | `Macintosh; rv:160.0` | ✅ HTTP 200 |
+| 4 | Chrome 157 Windows | `Chrome/157.0.0.0 Safari/537.36` | ✅ HTTP 200 |
+| 5 | Edge 157 Windows | `Chrome/157.0.0.0 Safari/537.36 Edg/157.0.0.0` | ✅ HTTP 200 |
+| 6 | Chrome 157 macOS | `Macintosh; Chrome/157.0.0.0` | ✅ HTTP 200 |
+| 7 | Chrome 157 Linux | `X11; Chrome/157.0.0.0` | ✅ HTTP 200 |
+| 8 | Safari 26.6 | `Version/26.6 Safari/605.1.15` | ✅ HTTP 200 |
+
+**Ключевые параметры обхода:**
+- Firefox 160 как основной UA (~55% запросов)
+- Актуальные версии браузеров (Chrome 157, Firefox 160, Safari 26.6)
+- `Accept: text/html,application/xhtml+xml,...` (без image/avif)
+- `sec-ch-ua` только для Chrome/Edge
+- `DNT: 1`, `Priority: u=0, i`, `zstd` в Accept-Encoding
+- Proxy bypass для `duckduckgo.com` (`shouldBypassProxy`)
+
 ## Хронология коммитов
 
 | Итерация | Коммит | Комментарий |
